@@ -1,0 +1,4 @@
+data_source duckdb_source:
+  type: duckdb
+  database: :memory:
+

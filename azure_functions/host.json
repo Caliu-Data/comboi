@@ -1,0 +1,11 @@
+{
+  "version": "2.0",
+  "extensions": {
+    "queues": {
+      "batchSize": 1,
+      "maxDequeueCount": 5,
+      "visibilityTimeout": "00:05:00"
+    }
+  }
+}
+

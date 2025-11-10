@@ -1,0 +1,14 @@
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.venv/
+*.pyc
+*.pyo
+*.db
+*.duckdb
+.DS_Store
+cache/
+logs/
+checkpoints/
+data/
+
