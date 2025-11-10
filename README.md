@@ -1,6 +1,6 @@
-# Serverless DuckDB Medallion ETL in Azure
+# ducksrvrls - Serverless DuckDB ELT System in Azure
 
-This repository contains `ducksrvls`, a Python-based ETL system that implements a medallion architecture on top of DuckDB, Azure Data Lake Storage using Azure Functions. It is designed to be configuration-driven and easy to operate.
+This repository contains `ducksrvrls`, a Python-based ELT system that implements a medallion architecture on top of DuckDB, Azure Data Lake Storage using Azure Functions. It is designed to be configuration-driven and easy to operate.
 
 ## Key Features
 
