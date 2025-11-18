@@ -1,11 +1,11 @@
-# ducksrvrls - Serverless DuckDB ELT System in Azure
+# Comboi - Serverless DuckDB ELT System in Azure
 
-This repository contains `ducksrvrls`, a Python-based ELT system that implements a medallion architecture on top of DuckDB, Azure Data Lake Storage using Azure Functions. It is designed to be configuration-driven and easy to operate.
+This repository contains `comboi`, a Python-based ELT system that implements a medallion architecture on top of DuckDB, Azure Data Lake Storage using Azure Functions. It is designed to be configuration-driven and easy to operate.
 
 ## Key Features
 
 - **Bronze landing**: Incremental extracts from Azure SQL Database and PostgreSQL using DuckDB, persisted as Parquet in Azure Data Lake Storage (ADLS) with checkpointing to avoid full reloads.
-- **Silver refinement**: Data cleansing with bruin quality checks and Splink-based deduplication, materialized back to ADLS.
+- **Silver refinement**: Data cleansing with [Bruin](https://github.com/bruin-data/bruin) quality checks and Splink-based deduplication, materialized back to ADLS.
 - **Gold metrics**: Aggregations and business-ready metrics generated in DuckDB and delivered to ADLS.
 - **Operational primitives**: Driver, Azure Storage Queue-backed queuer, executor, and monitoring primitives co-ordinate the full pipeline, with Azure Functions timer/queue triggers for serverless execution.
 - **Secret management with Azure Key Vault**: Database passwords, storage account keys, queue connection strings, and Azure Monitor connection strings are fetched at runtime, keeping configurations free of hardcoded secrets.
@@ -16,7 +16,7 @@ This repository contains `ducksrvrls`, a Python-based ELT system that implements
 ```
 .
 ├── configs/               # Pipeline configuration files
-├── transformations/       # Bruin transformation and quality check scripts
+├── transformations/       # [Bruin](https://github.com/bruin-data/bruin) transformation and quality check scripts
 ├── src/ducksrvls/         # Application source code (shared by CLI & Azure Functions)
 │   ├── connectors/        # Source system connectors (Azure SQL, PostgreSQL)
 │   ├── io/                # ADLS client helpers
@@ -37,8 +37,8 @@ This repository contains `ducksrvrls`, a Python-based ELT system that implements
 ### Silver: Curation Zone
 
 1. Bronze Parquet assets are read via DuckDB.
-2. Bruin transformation scripts (Python functions) apply SQL transformations to materialize curated views.
-3. Bruin quality check scripts execute configured data quality validations. Failures stop the pipeline to avoid propagating poor-quality data.
+2. [Bruin](https://github.com/bruin-data/bruin) transformation scripts (Python functions) apply SQL transformations to materialize curated views.
+3. [Bruin](https://github.com/bruin-data/bruin) quality check scripts execute configured data quality validations. Failures stop the pipeline to avoid propagating poor-quality data.
 4. Splink deduplicates the curated data, rewriting the clean dataset before upload to the Silver ADLS container.
 
 ### Gold: Serving Zone
@@ -66,21 +66,21 @@ The configuration is split into two files:
   - Connection queries for Azure SQL and PostgreSQL sources.
   - Storage account names / container templates if you diverge from defaults.
   - Transformations path (default: `transformations`).
-- **`configs/transformations.yml`**: Bruin transformation definitions for Silver and Gold stages. Lists which Python transformation scripts to run for each stage.
+- **`configs/transformations.yml`**: [Bruin](https://github.com/bruin-data/bruin) transformation definitions for Silver and Gold stages. Lists which Python transformation scripts to run for each stage.
 
 **Configuration Steps:**
 
 1. Copy `configs/initial.yml` and `configs/transformations.yml` to your environment-specific configs.
 2. Ensure the `key_vault.vault_url` points to the Vault provisioned by Terraform (or another of your choosing). Terraform seeds `queue-connection-string`, `application-insights-connection`, and `adls-storage-key`. Add remaining credentials (e.g. `azure-sql-password`, `postgres-password`) before execution.
-3. Create bruin transformation scripts in `transformations/` directory. Each script must define a `transform(con, inputs)` function that:
+3. Create [Bruin](https://github.com/bruin-data/bruin) transformation scripts in `transformations/` directory. Each script must define a `transform(con, inputs)` function that:
    - Receives a DuckDB connection (`con`) and input paths dictionary (`inputs`)
    - Returns a SQL query string (or pandas DataFrame) with the transformed data
    - Uses input aliases (e.g., `bronze_orders`, `orders_clean`) as DuckDB views
-4. Create bruin quality check scripts in `transformations/quality/` directory. Each script must define a `check(con, dataset_name)` function that:
+4. Create [Bruin](https://github.com/bruin-data/bruin) quality check scripts in `transformations/quality/` directory. Each script must define a `check(con, dataset_name)` function that:
    - Receives a DuckDB connection (`con`) with the dataset loaded as a view
    - Returns a tuple `(passed: bool, message: str)` indicating if checks passed
    - Performs data quality validations using SQL queries
-5. Update `configs/transformations.yml` to list the bruin transformations to run for each stage, along with quality check names and Splink settings for Silver transformations.
+5. Update `configs/transformations.yml` to list the [Bruin](https://github.com/bruin-data/bruin) transformations to run for each stage, along with quality check names and Splink settings for Silver transformations.
 6. Any time you modify code inside `src/ducksrvls`, rerun `python tools/embed_ducksrvls.py` so that the vendored copy under `azure_functions/shared_packages/` stays in sync for Function deployments.
 7. Optionally tailor `terraform/variables.tf` defaults (timer schedule, start stage, config path, region).
 8. (Optional) Set up a local Python environment `pip install -e .` if you need to lint or unit-test custom logic.
@@ -110,7 +110,7 @@ cd azure_functions
 func azure functionapp publish <function_app_name>
 ```
 
-**Note**: The bruin transformations directory (`transformations/`) must be accessible to the Azure Functions at runtime. Either:
+**Note**: The [Bruin](https://github.com/bruin-data/bruin) transformations directory (`transformations/`) must be accessible to the Azure Functions at runtime. Either:
 - Copy the `transformations/` directory into `azure_functions/` before publishing, or
 - Ensure the Function App can access the transformations via a mounted file share or by including it in the deployment package.
 
@@ -151,16 +151,16 @@ Once scheduled execution is healthy, downstream systems can consume Gold-layer o
 ## Extending the System
 
 - **Add new sources**: Create additional connector classes and reference them in `configs/initial.yml`.
-- **Add transformations**: Create new bruin transformation scripts in `transformations/` (e.g., `transformations/my_transform.py` with a `transform(con, inputs)` function), then add them to `configs/transformations.yml`.
-- **Add quality checks**: Create new bruin quality check scripts in `transformations/quality/` (e.g., `transformations/quality/my_quality.py` with a `check(con, dataset_name)` function), then reference them in `configs/transformations.yml` under `quality_checks` for Silver transformations.
+- **Add transformations**: Create new [Bruin](https://github.com/bruin-data/bruin) transformation scripts in `transformations/` (e.g., `transformations/my_transform.py` with a `transform(con, inputs)` function), then add them to `configs/transformations.yml`.
+- **Add quality checks**: Create new [Bruin](https://github.com/bruin-data/bruin) quality check scripts in `transformations/quality/` (e.g., `transformations/quality/my_quality.py` with a `check(con, dataset_name)` function), then reference them in `configs/transformations.yml` under `quality_checks` for Silver transformations.
 - **Add Splink deduplication**: Configure Splink settings in `configs/transformations.yml` for Silver transformations that need deduplication.
 - **Integrate with other orchestration**: Reuse the Azure Functions entrypoints or invoke `Driver.run_stage()` programmatically.
 
 ## Troubleshooting
 
 - **Missing DuckDB extensions**: Ensure DuckDB 0.10+ is installed. The pipeline auto-installs `odbc` and `postgres_scanner`, but network access may be required once per environment.
-- **Bruin transformation errors**: Verify transformation scripts are in `transformations/` directory, check that each script defines a `transform(con, inputs)` function, and ensure transformation names in `configs/transformations.yml` match the Python file names (without `.py` extension).
-- **Bruin quality check failures**: Verify quality check scripts are in `transformations/quality/` directory, check that each script defines a `check(con, dataset_name)` function that returns `(bool, str)`, and ensure quality check names in `configs/transformations.yml` match the Python file names (without `.py` extension). Review error messages in logs to identify which specific checks failed.
+- **[Bruin](https://github.com/bruin-data/bruin) transformation errors**: Verify transformation scripts are in `transformations/` directory, check that each script defines a `transform(con, inputs)` function, and ensure transformation names in `configs/transformations.yml` match the Python file names (without `.py` extension).
+- **[Bruin](https://github.com/bruin-data/bruin) quality check failures**: Verify quality check scripts are in `transformations/quality/` directory, check that each script defines a `check(con, dataset_name)` function that returns `(bool, str)`, and ensure quality check names in `configs/transformations.yml` match the Python file names (without `.py` extension). Review error messages in logs to identify which specific checks failed.
 - **ADLS authentication issues**: Provide a valid credential in the configuration or export Azure identity context (e.g., `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_CLIENT_SECRET`) before running the CLI.
 - **Key Vault access issues**: Ensure the identity running `ducksrvls` has `get` and `list` secret permissions on the referenced Key Vault and that the secret names in the configuration exist.
 - **Azure Storage Queue problems**: Confirm the queue exists (it is created automatically if missing), the connection string is valid, and the identity has `send`, `receive`, and `delete` rights. Keep `host.json` queue batch size at one to prevent out-of-order execution.
@@ -170,7 +170,10 @@ Once scheduled execution is healthy, downstream systems can consume Gold-layer o
 ## Roadmap Ideas
 
 - Multicloud
-
+- Industry Specific Building Blocks
+- Streaming broker
+- CDC
+- Delta and Apache Iceberg Tables
 ---
 
 Happy querying with DuckDB! Contributions and customizations are welcome.
