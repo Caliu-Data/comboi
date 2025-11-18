@@ -19,7 +19,6 @@ dependencies = [
     "azure-storage-queue>=12.10.0",
     "azure-functions>=1.15.0",
     "azure-monitor-opentelemetry-exporter>=1.0.0",
-    "soda-core-duckdb>=3.3.0",
     "splink>=3.10.3",
     "pandas>=2.2.0",
     "tenacity>=8.2.3",

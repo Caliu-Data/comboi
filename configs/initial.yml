@@ -1,0 +1,64 @@
+key_vault:
+  vault_url: "https://your-key-vault.vault.azure.net/"
+
+queue:
+  connection_string: "{{keyvault:queue-connection-string}}"
+  queue_name: "ducksrvls-tasks"
+  visibility_timeout: 300
+
+sources:
+  - name: sales_azure
+    type: azure_sql
+    connection:
+      dsn: "Driver={ODBC Driver 18 for SQL Server};Server=tcp:your-server.database.windows.net;Database=your-db;Uid=your-user;Pwd={{keyvault:azure-sql-password}};Encrypt=yes;"
+    checkpoint_key: "sales_azure"
+    tables:
+      - name: orders
+        query: "SELECT * FROM dbo.orders"
+        incremental_column: "updated_at"
+      - name: customers
+        query: "SELECT * FROM dbo.customers"
+        incremental_column: "updated_at"
+  - name: marketing_pg
+    type: postgres
+    connection:
+      conn_str: "postgres://user:{{keyvault:postgres-password}}@host:5432/database"
+    checkpoint_key: "marketing_pg"
+    tables:
+      - name: campaigns
+        query: "SELECT * FROM public.campaigns"
+        incremental_column: "updated_at"
+
+stages:
+  bronze:
+    checkpoint_path: "checkpoints/bronze.json"
+    local_path: "data/bronze"
+    data_lake:
+      account_name: "{{env:DATA_LAKE_ACCOUNT_NAME}}"
+      file_system: "bronze"
+      credential: "{{keyvault:adls-storage-key}}"
+    remote_path_template: "{stage}/{source}/{table}.parquet"
+  silver:
+    local_path: "data/silver"
+    data_lake:
+      account_name: "{{env:DATA_LAKE_ACCOUNT_NAME}}"
+      file_system: "silver"
+      credential: "{{keyvault:adls-storage-key}}"
+    remote_path_template: "{stage}/{source}/{table}.parquet"
+    transformations_path: "transformations"
+    splink:
+      enabled: true
+  gold:
+    local_path: "data/gold"
+    data_lake:
+      account_name: "{{env:DATA_LAKE_ACCOUNT_NAME}}"
+      file_system: "gold"
+      credential: "{{keyvault:adls-storage-key}}"
+    remote_path_template: "{stage}/{source}/{table}.parquet"
+    transformations_path: "transformations"
+
+monitoring:
+  log_path: "logs/pipeline.log"
+  metrics_path: "logs/metrics.json"
+  azure_connection_string: "{{keyvault:application-insights-connection}}"
+

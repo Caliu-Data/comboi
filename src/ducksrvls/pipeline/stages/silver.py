@@ -6,9 +6,10 @@ from typing import Dict, List
 
 import duckdb
 from rich.console import Console
-from soda.scan import Scan
 from splink.duckdb.duckdb_linker import DuckDBLinker
 
+from ducksrvls.bruin_runner import BruinRunner
+from ducksrvls.bruin_quality import BruinQualityRunner
 from ducksrvls.io.adls import ADLSClient
 
 console = Console()
@@ -21,67 +22,78 @@ class SilverStage:
 
     def run(self, stage_conf: Dict) -> List[str]:
         outputs: List[str] = []
-        for dataset in stage_conf["datasets"]:
-            bronze_uri = dataset["bronze_uri"]
-            local_path = self.local_silver / f"{dataset['name']}.parquet"
-            local_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Get bruin configuration
+        transformations_path = Path(stage_conf.get("transformations_path", "transformations"))
+        bronze_base_path = stage_conf.get("bronze_base_path", "data/bronze")
+        
+        # Get transformations config
+        transformations = stage_conf.get("transformations", {})
+        silver_transforms = transformations.get("silver", [])
+        
+        if not silver_transforms:
+            console.log("[yellow]No bruin transformations configured for Silver stage[/]")
+            return outputs
 
-            console.log(f"[bold blue]Transforming bronze dataset {dataset['name']}[/]")
-            con = duckdb.connect()
-            try:
-                con.execute(f"CREATE VIEW bronze AS SELECT * FROM read_parquet('{bronze_uri}')")
-                for statement in dataset.get("transformations", []):
-                    con.execute(statement)
-                dedup_view = dataset.get("deduplication_view", "bronze_clean")
-                con.execute(
-                    f"COPY (SELECT * FROM {dedup_view}) TO '{local_path.as_posix()}' (FORMAT PARQUET)"
+        # Initialize bruin runner
+        bruin_runner = BruinRunner(transformations_path=transformations_path)
+
+        # Run bruin transformations
+        input_base_paths = {"bronze": bronze_base_path}
+        bruin_outputs = bruin_runner.run_transformations(
+            "silver",
+            silver_transforms,
+            self.local_silver,
+            input_base_paths,
+        )
+
+        # Process each transformation output
+        for trans_config, bruin_output in zip(silver_transforms, bruin_outputs):
+            trans_name = trans_config["name"]
+            console.log(f"[bold blue]Processing Silver transformation {trans_name}[/]")
+
+            # Run bruin quality checks if configured
+            if "quality_checks" in trans_config:
+                quality_runner = BruinQualityRunner(
+                    transformations_path=transformations_path
                 )
-            finally:
-                con.close()
+                quality_runner.run_quality_checks(
+                    trans_config["quality_checks"],
+                    bruin_output,
+                    trans_name,
+                )
 
-            self._run_soda(dataset)
-            self._run_splink(dataset, local_path)
+            # Run Splink deduplication if configured
+            if "splink" in trans_config:
+                self._run_splink(trans_config, bruin_output)
 
+            # Upload to ADLS
             remote_path = stage_conf["remote_path_template"].format(
-                stage="silver", source="refined", table=dataset["name"]
+                stage="silver", source="refined", table=trans_name
             )
-            remote_uri = self.data_lake.upload(local_path, remote_path)
+            remote_uri = self.data_lake.upload(bruin_output, remote_path)
             outputs.append(remote_uri)
 
         console.log(f"[bold green]Silver stage produced {len(outputs)} datasets[/]")
         return outputs
 
-    def _run_soda(self, dataset: Dict) -> None:
-        soda_cfg = dataset.get("soda")
-        if not soda_cfg:
-            return
-        console.log(f"[cyan]Running Soda scan for {dataset['name']}[/]")
-        scan = Scan()
-        if configuration := soda_cfg.get("config"):
-            scan.add_configuration_yaml_file(configuration)
-        if checks := soda_cfg.get("checks"):
-            scan.add_sodacl_yaml_file(checks)
-        scan.set_scan_definition_name(dataset["name"])
-        scan.execute()
-        if scan.has_check_failures() or scan.has_error_logs():
-            raise RuntimeError(f"Soda checks failed for {dataset['name']}")
-
-    def _run_splink(self, dataset: Dict, local_path: Path) -> None:
-        splink_cfg = dataset.get("splink")
+    def _run_splink(self, trans_config: Dict, local_path: Path) -> None:
+        splink_cfg = trans_config.get("splink")
         if not splink_cfg:
             return
-        console.log(f"[cyan]Running Splink deduplication for {dataset['name']}[/]")
+        trans_name = trans_config["name"]
+        console.log(f"[cyan]Running Splink deduplication for {trans_name}[/]")
         linker = DuckDBLinker(
             input_table_or_tables=[
                 {
-                    "table_name": dataset["name"],
+                    "table_name": trans_name,
                     "sql": f"SELECT * FROM read_parquet('{local_path.as_posix()}')",
                 }
             ],
-            settings_dict=splink_cfg["settings"],
+            settings_dict=splink_cfg,
         )
         splink_df = linker.deduplicate_table(
-            dataset["name"],
+            trans_name,
             blocking_rule=splink_cfg.get("blocking_rule"),
             retain_matching_columns=True,
         )

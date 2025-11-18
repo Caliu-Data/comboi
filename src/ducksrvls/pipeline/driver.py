@@ -34,6 +34,12 @@ class Driver:
             data_lake=ADLSClient(**bronze_conf["data_lake"]),
             local_landing=Path(bronze_conf["local_path"]),
         )
+        # Set base paths for dbt variables
+        bronze_base = str(Path(bronze_conf["local_path"]).resolve())
+        silver_base = str(Path(silver_conf["local_path"]).resolve())
+        silver_conf["bronze_base_path"] = bronze_base
+        gold_conf["silver_base_path"] = silver_base
+        
         self.silver_stage = SilverStage(
             data_lake=ADLSClient(**silver_conf["data_lake"]),
             local_silver=Path(silver_conf["local_path"]),

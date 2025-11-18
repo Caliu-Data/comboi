@@ -48,9 +48,15 @@ class PipelineConfig:
     key_vault: Optional[KeyVaultConfig] = None
 
 
-def load_config(path: Path) -> PipelineConfig:
+def load_config(path: Path, transformations_path: Optional[Path] = None) -> PipelineConfig:
     with path.open("r", encoding="utf-8") as f:
         raw = yaml.safe_load(f)
+
+    # Load transformations config if provided
+    transformations: Dict[str, Any] = {}
+    if transformations_path and transformations_path.exists():
+        with transformations_path.open("r", encoding="utf-8") as f:
+            transformations = yaml.safe_load(f) or {}
 
     raw_key_vault = raw.get("key_vault")
     key_vault_cfg: Optional[KeyVaultConfig] = None
@@ -58,6 +64,13 @@ def load_config(path: Path) -> PipelineConfig:
         key_vault_cfg = KeyVaultConfig(vault_url=raw_key_vault["vault_url"])
         resolver = SecretResolver(key_vault_cfg)
         raw = resolver.resolve_structure(raw, skip_keys=("key_vault",))
+
+    # Merge transformations into stages config
+    if transformations:
+        if "silver" in transformations:
+            raw.setdefault("stages", {}).setdefault("silver", {})["transformations"] = transformations["silver"]
+        if "gold" in transformations:
+            raw.setdefault("stages", {}).setdefault("gold", {})["transformations"] = transformations["gold"]
 
     sources = [
         SourceConfig(
