@@ -1,0 +1,56 @@
+version: 2
+
+models:
+  # Finance Models
+  - name: finance_accounts_summary
+    description: "Account-level summary metrics and balances"
+    columns:
+      - name: account_id
+        description: "Unique account identifier"
+        tests:
+          - unique
+          - not_null
+      - name: current_balance
+        description: "Current account balance"
+        tests:
+          - not_null
+
+  # Health Models
+  - name: health_patient_readmissions
+    description: "30-day readmission analytics for quality reporting"
+    columns:
+      - name: patient_id
+        description: "Patient identifier"
+        tests:
+          - not_null
+      - name: is_30day_readmission
+        description: "Flag for 30-day readmission"
+        tests:
+          - not_null
+
+  # Energy Models
+  - name: energy_consumption_analytics
+    description: "Aggregated energy consumption metrics and forecasts"
+    columns:
+      - name: meter_id
+        description: "Smart meter identifier"
+        tests:
+          - not_null
+      - name: analysis_date
+        description: "Date of analysis"
+        tests:
+          - not_null
+
+  # Ecommerce Models
+  - name: ecommerce_customer_lifetime_value
+    description: "Customer lifetime value and behavioral segmentation"
+    columns:
+      - name: user_id
+        description: "Unique user identifier"
+        tests:
+          - unique
+          - not_null
+      - name: customer_lifetime_value
+        description: "Predicted lifetime value"
+        tests:
+          - not_null

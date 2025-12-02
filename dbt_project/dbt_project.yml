@@ -1,0 +1,42 @@
+# dbt project configuration for Comboi
+# This project runs transformations on DuckDB for the Medallion architecture
+
+name: 'comboi_dbt'
+version: '1.0.0'
+config-version: 2
+
+# Project profile - references profiles.yml
+profile: 'comboi'
+
+# Directories
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# Model configurations
+models:
+  comboi_dbt:
+    # Silver layer models
+    silver:
+      +materialized: table
+      +schema: silver
+      +tags: ["silver", "curated"]
+
+    # Gold layer models
+    gold:
+      +materialized: table
+      +schema: gold
+      +tags: ["gold", "analytics"]
+
+# Variables that can be overridden at runtime
+vars:
+  bronze_base_path: "data/bronze"
+  silver_base_path: "data/silver"
+  gold_base_path: "data/gold"

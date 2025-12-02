@@ -1,0 +1,94 @@
+version: "1.0.0"
+dataset: "energy_meter_readings"
+stage: "silver"
+owner: "energy-ops-team"
+description: "Validated smart meter readings with anomaly detection"
+
+schema:
+  columns:
+    - name: reading_id
+      type: VARCHAR
+      nullable: false
+      description: "Unique reading identifier"
+      constraints:
+        - unique: true
+        - not_null: true
+    - name: meter_id
+      type: VARCHAR
+      nullable: false
+      description: "Smart meter identifier"
+      constraints:
+        - not_null: true
+    - name: reading_timestamp
+      type: TIMESTAMP
+      nullable: false
+      description: "Timestamp of meter reading"
+      constraints:
+        - not_null: true
+    - name: consumption_kwh
+      type: DECIMAL
+      nullable: false
+      description: "Energy consumption in kilowatt-hours"
+      constraints:
+        - not_null: true
+        - min_value: 0
+        - max_value: 1000
+    - name: voltage
+      type: DECIMAL
+      nullable: true
+      description: "Voltage measurement"
+      constraints:
+        - min_value: 100
+        - max_value: 300
+    - name: power_factor
+      type: DECIMAL
+      nullable: true
+      description: "Power factor (0-1)"
+      constraints:
+        - min_value: 0
+        - max_value: 1
+    - name: meter_status
+      type: VARCHAR
+      nullable: false
+      description: "Meter operational status"
+      constraints:
+        - allowed_values: ["normal", "warning", "error", "offline"]
+    - name: is_anomaly
+      type: BOOLEAN
+      nullable: false
+      description: "Flag for anomalous reading"
+
+quality_rules:
+  - name: "no_duplicate_readings"
+    type: "uniqueness"
+    column: "reading_id"
+    severity: "error"
+  - name: "valid_meter_ids"
+    type: "not_null"
+    column: "meter_id"
+    severity: "error"
+  - name: "reasonable_consumption"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE consumption_kwh > 100 AND meter_status = 'normal'"
+    expected: 0
+    severity: "warning"
+  - name: "valid_voltage_range"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE voltage IS NOT NULL AND (voltage < 110 OR voltage > 250)"
+    expected: 0
+    severity: "warning"
+  - name: "minimum_readings"
+    type: "volume"
+    min_rows: 1
+    severity: "error"
+
+sla:
+  freshness:
+    max_age_hours: 1
+    schedule: "hourly"
+  completeness:
+    min_row_count: 1000
+
+evolution:
+  backward_compatible: true
+  breaking_changes_allowed: false

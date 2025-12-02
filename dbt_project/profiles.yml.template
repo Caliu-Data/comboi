@@ -1,0 +1,32 @@
+# dbt profiles configuration for Comboi
+# This file configures the DuckDB connection for dbt transformations
+
+comboi:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ':memory:'
+
+      # Extensions to load (DuckDB will auto-install these)
+      extensions:
+        - parquet
+        - httpfs
+
+      # Database configuration
+      settings:
+        threads: 4
+        # Enable Azure Blob Storage access via httpfs
+        azure_storage_connection_string: "{{ env_var('AZURE_STORAGE_CONNECTION_STRING', '') }}"
+
+    prod:
+      type: duckdb
+      path: ':memory:'
+
+      extensions:
+        - parquet
+        - httpfs
+
+      settings:
+        threads: 8
+        azure_storage_connection_string: "{{ env_var('AZURE_STORAGE_CONNECTION_STRING', '') }}"

@@ -9,11 +9,43 @@
 - **Bronze Landing**: Incremental extracts from Azure SQL Database and PostgreSQL using DuckDB, persisted as Parquet in Azure Data Lake Storage (ADLS) with checkpointing to avoid full reloads
 - **Silver Refinement**: Data cleansing using **Data Contracts** with [Bruin](https://github.com/bruin-data/bruin) quality checks and Splink-based deduplication, materialized back to ADLS
 - **Gold Metrics**: Aggregations and business-ready metrics generated in DuckDB and delivered to ADLS
+- **Dual Transformation Engine**: Support for both [Bruin](https://github.com/bruin-data/bruin) (Python-based) and [dbt-duckdb](https://github.com/duckdb/dbt-duckdb) (SQL-based) transformations
 - **Data Contracts**: Declarative schema, quality rules, and SLA validation through YAML contracts
 - **Serverless Execution**: Azure Functions with timer/queue triggers for automated pipeline orchestration
 - **Secret Management**: Azure Key Vault integration for secure credential management
 - **Structured Logging**: JSON logs using structlog for better observability
 - **Infrastructure-as-Code**: Complete Azure infrastructure provisioned via Terraform
+- **Industry Templates**: Ready-to-use examples for Finance, Health, Energy, and Ecommerce
+
+## 🏢 Industry Examples
+
+Comboi includes production-ready examples across four industries, demonstrating both **dbt (SQL)** and **Bruin (Python)** transformations:
+
+### Finance
+- **dbt**: Transaction verification and account aggregations
+- **Bruin**: ML-based fraud detection with statistical analysis
+- **Contracts**: Transaction validation, fraud scoring, account balances
+
+### Healthcare
+- **dbt**: Patient encounter cleansing and 30-day readmission analysis
+- **Bruin**: Patient risk stratification with Charlson Comorbidity Index
+- **Contracts**: ICD-10 validation, clinical quality metrics
+
+### Energy
+- **dbt**: Smart meter reading validation and consumption analytics
+- **Bruin**: Time series load forecasting and anomaly detection
+- **Contracts**: Meter data quality, consumption patterns, efficiency scoring
+
+### Ecommerce
+- **dbt**: User session analysis and customer lifetime value
+- **Bruin**: Product recommendation engine with collaborative filtering
+- **Contracts**: Session metrics, conversion validation, CLV computation
+
+📂 **Examples Location:**
+- Contracts: `contracts/*_*.yml`
+- dbt Models: `dbt_project/models/silver/*.sql`, `dbt_project/models/gold/*.sql`
+- Bruin Scripts: `transformations/*_*.py`
+- Configuration: `configs/transformations.yml`
 
 ## 📁 Repository Structure
 
@@ -24,11 +56,21 @@
 │   ├── transformations.yml     # Transformation and quality check definitions
 │   └── default.yml            # Example configuration
 ├── contracts/                  # Data contract definitions (YAML)
-│   ├── orders_clean.yml       # Example contract
-│   └── customers_clean.yml     # Example contract
-├── transformations/            # Bruin transformation scripts
-│   ├── quality/               # Quality check scripts (legacy, use contracts instead)
-│   └── *.py                   # Transformation scripts
+│   ├── finance_*.yml          # Finance industry contracts
+│   ├── health_*.yml           # Healthcare industry contracts
+│   ├── energy_*.yml           # Energy industry contracts
+│   └── ecommerce_*.yml        # Ecommerce industry contracts
+├── transformations/            # Bruin transformation scripts (Python)
+│   ├── finance_*.py           # Finance transformations (ML, fraud detection)
+│   ├── health_*.py            # Healthcare transformations (risk models)
+│   ├── energy_*.py            # Energy transformations (forecasting)
+│   └── ecommerce_*.py         # Ecommerce transformations (recommendations)
+├── dbt_project/               # dbt transformation models (SQL)
+│   ├── dbt_project.yml        # dbt project configuration
+│   ├── profiles.yml.template  # dbt connection profile template
+│   └── models/                # dbt SQL models
+│       ├── silver/            # Silver layer models
+│       └── gold/              # Gold layer models
 ├── src/comboi/                # Main application code
 │   ├── connectors/            # Source connectors (Azure SQL, PostgreSQL)
 │   ├── contracts/             # Data contract validation
@@ -42,7 +84,8 @@
 │   └── shared_packages/       # Vendored comboi package
 ├── terraform/                 # Infrastructure as Code
 └── tools/                     # Utility scripts
-    └── embed_comboi.py        # Copy comboi to Azure Functions
+    ├── embed_comboi.py        # Copy comboi to Azure Functions
+    └── scaffold_transformation.py  # Scaffold new transformations
 ```
 
 ## 🏗️ Architecture
@@ -57,13 +100,13 @@
 
 **Silver (Curation Zone)**
 - Reads Bronze Parquet files via DuckDB
-- Applies [Bruin](https://github.com/bruin-data/bruin) transformations (Python functions)
+- Applies transformations using [Bruin](https://github.com/bruin-data/bruin) (Python) or [dbt-duckdb](https://github.com/duckdb/dbt-duckdb) (SQL)
 - Validates data using **Data Contracts** (schema, quality rules, SLAs)
 - Deduplicates using Splink
 - Materializes cleaned data back to ADLS
 
 **Gold (Serving Zone)**
-- Composes Silver datasets into analytical models
+- Composes Silver datasets into analytical models using Bruin or dbt
 - Generates business metrics and aggregations
 - Exports as Parquet to ADLS for BI and downstream consumption
 
@@ -102,17 +145,18 @@ pip install -e .
    - Set up source queries and incremental columns
 
 3. **Configure transformations** in `configs/my-env-transformations.yml`:
-   - Define Silver transformations
+   - Define Silver and Gold transformations
+   - Choose between Bruin (Python) or dbt (SQL) for each transformation
    - Reference data contracts using `contract:contract_name` in `quality_checks`
-   - Configure Gold aggregations
+   - See `configs/transformations.yml` for examples
 
 4. **Create data contracts** in `contracts/`:
    - Define schema, quality rules, and SLAs
    - See `contracts/README.md` for contract format
 
-5. **Create transformation scripts** in `transformations/`:
-   - Each script must define a `transform(con, inputs)` function
-   - Returns SQL query string or pandas DataFrame
+5. **Create transformations** using Bruin or dbt:
+   - **Bruin**: Python scripts in `transformations/` with `transform(con, inputs)` function
+   - **dbt**: SQL models in `dbt_project/models/` (see `dbt_project/README.md` for details)
 
 ### Local Testing
 
@@ -159,8 +203,9 @@ Add the following secrets to Key Vault:
 # Embed comboi package into Azure Functions
 python tools/embed_comboi.py
 
-# Copy transformations and contracts to Azure Functions
+# Copy transformations, dbt models, contracts, and configs to Azure Functions
 cp -r transformations azure_functions/
+cp -r dbt_project azure_functions/
 cp -r contracts azure_functions/
 cp -r configs azure_functions/
 
@@ -169,7 +214,7 @@ cd azure_functions
 func azure functionapp publish <function_app_name>
 ```
 
-**Note**: The `transformations/` and `contracts/` directories must be accessible to Azure Functions at runtime. Include them in the deployment package or use a mounted file share.
+**Note**: The `transformations/`, `dbt_project/`, `contracts/`, and `configs/` directories must be accessible to Azure Functions at runtime. Include them in the deployment package or use a mounted file share.
 
 ### 4. Verify Execution
 
@@ -229,15 +274,60 @@ silver:
 
 ## 🛠️ Extending the System
 
+### Quick Start with Scaffolding Tool
+
+Use the scaffolding tool to quickly create new transformations:
+
+```bash
+# Create a dbt SQL transformation with data contract
+python tools/scaffold_transformation.py \
+  --name my_analytics \
+  --type dbt \
+  --stage gold \
+  --industry finance \
+  --contract
+
+# Create a Bruin Python transformation
+python tools/scaffold_transformation.py \
+  --name ml_predictions \
+  --type bruin \
+  --stage silver \
+  --industry health
+
+# Create just a data contract
+python tools/scaffold_transformation.py \
+  --name my_dataset \
+  --contract-only \
+  --stage silver \
+  --industry energy
+```
+
+The tool automatically creates:
+- ✅ Transformation file (SQL or Python) with template code
+- ✅ Data contract YAML (optional)
+- ✅ Configuration snippet for `transformations.yml`
+
 ### Add New Sources
 
 1. Create a connector class in `src/comboi/connectors/`
 2. Reference it in `configs/initial.yml` under `sources`
 
-### Add Transformations
+### Add Transformations Manually
 
+Choose between Bruin (Python) or dbt (SQL) based on your use case:
+
+**Using Bruin (Python):**
 1. Create a Python script in `transformations/` with a `transform(con, inputs)` function
-2. Add to `configs/transformations.yml` under the appropriate stage
+2. Add to `configs/transformations.yml` with `type: bruin` (or omit, as bruin is default)
+
+**Using dbt (SQL):**
+1. Create a SQL model in `dbt_project/models/silver/` or `dbt_project/models/gold/`
+2. Add to `configs/transformations.yml` with `type: dbt` and `model: your_model_name`
+3. See `dbt_project/README.md` for dbt-specific guidance
+
+**When to use which:**
+- Use **Bruin** for: Complex Python logic, ML features, custom Splink deduplication
+- Use **dbt** for: SQL-based transformations, standard cleansing, aggregations, dbt testing framework
 
 ### Add Data Contracts
 
@@ -258,9 +348,17 @@ silver:
 - Extensions (`odbc`, `postgres_scanner`) auto-install but require network access
 
 ### Transformation Errors
+
+**Bruin transformations:**
 - Verify scripts are in `transformations/` directory
 - Check that `transform(con, inputs)` function exists
 - Ensure transformation names in config match Python file names (without `.py`)
+
+**dbt transformations:**
+- Verify SQL models are in `dbt_project/models/` directory
+- Check that model name matches SQL file name (without `.sql`)
+- Ensure `dbt_project/dbt_project.yml` exists and is properly configured
+- Run `dbt debug` to check for configuration issues
 
 ### Data Contract Validation Failures
 - Verify contract YAML files exist in `contracts/` directory
@@ -294,8 +392,10 @@ silver:
 
 ## 📚 Additional Resources
 
-- **Data Contracts**: See `contracts/README.md` for contract documentation
+- **Data Contracts**: See [contracts/README.md](contracts/README.md) for contract documentation
+- **dbt Project**: See [dbt_project/README.md](dbt_project/README.md) for dbt-specific documentation
 - **Bruin**: [https://github.com/bruin-data/bruin](https://github.com/bruin-data/bruin)
+- **dbt-duckdb**: [https://github.com/duckdb/dbt-duckdb](https://github.com/duckdb/dbt-duckdb)
 - **DuckDB**: [https://duckdb.org/](https://duckdb.org/)
 - **Splink**: [https://github.com/moj-analytical-services/splink](https://github.com/moj-analytical-services/splink)
 

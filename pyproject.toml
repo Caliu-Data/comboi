@@ -22,9 +22,43 @@ dependencies = [
     "splink>=3.10.3",
     "pandas>=2.2.0",
     "tenacity>=8.2.3",
-    "typer>=0.12.3"
+    "typer>=0.12.3",
+    "dbt-core>=1.7.0",
+    "dbt-duckdb>=1.7.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.7.0",
+    "ruff>=0.0.285",
+    "mypy>=1.5.0",
+    "pre-commit>=3.3.3",
 ]
 
 [project.scripts]
 comboi = "comboi.cli:app"
+
+[tool.black]
+line-length = 100
+target-version = ['py39', 'py310', 'py311']
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]  # Line too long (handled by black)
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
+addopts = "--cov=comboi --cov-report=html --cov-report=term-missing"
 

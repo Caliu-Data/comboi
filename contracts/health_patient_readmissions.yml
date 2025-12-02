@@ -1,0 +1,87 @@
+version: "1.0.0"
+dataset: "health_patient_readmissions"
+stage: "gold"
+owner: "clinical-analytics-team"
+description: "30-day readmission analytics for quality reporting"
+
+schema:
+  columns:
+    - name: patient_id
+      type: VARCHAR
+      nullable: false
+      description: "Patient identifier (anonymized)"
+      constraints:
+        - not_null: true
+    - name: index_encounter_id
+      type: VARCHAR
+      nullable: false
+      description: "Initial encounter identifier"
+      constraints:
+        - not_null: true
+    - name: index_date
+      type: DATE
+      nullable: false
+      description: "Date of index encounter"
+      constraints:
+        - not_null: true
+    - name: readmission_encounter_id
+      type: VARCHAR
+      nullable: true
+      description: "Readmission encounter ID (null if no readmission)"
+    - name: readmission_date
+      type: DATE
+      nullable: true
+      description: "Date of readmission"
+    - name: days_to_readmission
+      type: INTEGER
+      nullable: true
+      description: "Days between discharge and readmission"
+      constraints:
+        - min_value: 0
+        - max_value: 30
+    - name: is_30day_readmission
+      type: BOOLEAN
+      nullable: false
+      description: "Flag for 30-day readmission"
+    - name: index_diagnosis
+      type: VARCHAR
+      nullable: false
+      description: "Primary diagnosis of index encounter"
+    - name: readmission_diagnosis
+      type: VARCHAR
+      nullable: true
+      description: "Primary diagnosis of readmission"
+    - name: risk_score
+      type: DECIMAL
+      nullable: false
+      description: "Readmission risk score (0-1)"
+      constraints:
+        - min_value: 0
+        - max_value: 1
+
+quality_rules:
+  - name: "valid_readmission_window"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE days_to_readmission > 30"
+    expected: 0
+    severity: "error"
+  - name: "consistent_readmission_flag"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE is_30day_readmission = true AND readmission_encounter_id IS NULL"
+    expected: 0
+    severity: "error"
+  - name: "minimum_records"
+    type: "volume"
+    min_rows: 1
+    severity: "error"
+
+sla:
+  freshness:
+    max_age_hours: 24
+    schedule: "daily"
+  completeness:
+    min_row_count: 1
+
+evolution:
+  backward_compatible: true
+  breaking_changes_allowed: false

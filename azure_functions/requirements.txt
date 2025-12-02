@@ -1,0 +1,29 @@
+# Azure Functions Python Requirements
+# This file is used by Azure Functions runtime to install dependencies
+
+# Core Dependencies
+duckdb>=0.10.0
+pyyaml>=6.0.1
+rich>=13.7.0
+
+# Azure SDK
+adlfs>=2024.4.0
+azure-identity>=1.15.0
+azure-keyvault-secrets>=4.8.0
+azure-storage-queue>=12.10.0
+azure-functions>=1.15.0
+
+# Logging and Monitoring
+structlog>=24.1.0
+
+# Data Processing
+splink>=3.10.3
+pandas>=2.2.0
+
+# Utilities
+tenacity>=8.2.3
+typer>=0.12.3
+
+# dbt Support
+dbt-core>=1.7.0
+dbt-duckdb>=1.7.0

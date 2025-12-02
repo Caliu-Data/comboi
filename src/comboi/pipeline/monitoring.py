@@ -5,8 +5,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict
 
-from comboi.logging import get_logger
+import structlog
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+
+from comboi.logging import get_logger
 
 logger = get_logger(__name__)
 

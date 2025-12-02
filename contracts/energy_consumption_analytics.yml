@@ -1,0 +1,97 @@
+version: "1.0.0"
+dataset: "energy_consumption_analytics"
+stage: "gold"
+owner: "energy-analytics-team"
+description: "Aggregated energy consumption metrics and forecasts"
+
+schema:
+  columns:
+    - name: meter_id
+      type: VARCHAR
+      nullable: false
+      description: "Smart meter identifier"
+      constraints:
+        - not_null: true
+    - name: analysis_date
+      type: DATE
+      nullable: false
+      description: "Date of analysis"
+      constraints:
+        - not_null: true
+    - name: total_consumption_kwh
+      type: DECIMAL
+      nullable: false
+      description: "Total daily consumption"
+      constraints:
+        - min_value: 0
+    - name: avg_consumption_kwh
+      type: DECIMAL
+      nullable: false
+      description: "Average hourly consumption"
+      constraints:
+        - min_value: 0
+    - name: peak_consumption_kwh
+      type: DECIMAL
+      nullable: false
+      description: "Peak hourly consumption"
+      constraints:
+        - min_value: 0
+    - name: peak_hour
+      type: INTEGER
+      nullable: true
+      description: "Hour of peak consumption (0-23)"
+      constraints:
+        - min_value: 0
+        - max_value: 23
+    - name: off_peak_consumption_kwh
+      type: DECIMAL
+      nullable: false
+      description: "Consumption during off-peak hours"
+      constraints:
+        - min_value: 0
+    - name: consumption_variance
+      type: DECIMAL
+      nullable: false
+      description: "Variance in consumption pattern"
+      constraints:
+        - min_value: 0
+    - name: anomaly_count
+      type: INTEGER
+      nullable: false
+      description: "Number of anomalous readings"
+      constraints:
+        - min_value: 0
+    - name: efficiency_score
+      type: DECIMAL
+      nullable: false
+      description: "Energy efficiency score (0-100)"
+      constraints:
+        - min_value: 0
+        - max_value: 100
+
+quality_rules:
+  - name: "peak_greater_than_average"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE peak_consumption_kwh < avg_consumption_kwh"
+    expected: 0
+    severity: "error"
+  - name: "total_equals_sum"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE total_consumption_kwh < avg_consumption_kwh * 20"
+    expected: 0
+    severity: "warning"
+  - name: "minimum_analytics"
+    type: "volume"
+    min_rows: 1
+    severity: "error"
+
+sla:
+  freshness:
+    max_age_hours: 24
+    schedule: "daily"
+  completeness:
+    min_row_count: 10
+
+evolution:
+  backward_compatible: true
+  breaking_changes_allowed: false

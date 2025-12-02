@@ -1,48 +1,212 @@
-# Bruin transformations configuration
-# This file defines which bruin transformation scripts to run for Silver and Gold stages
+# Comboi Transformations Configuration
+# Industry-specific examples for Finance, Health, Energy, and Ecommerce
+#
+# This file demonstrates how to use:
+# - dbt transformations (SQL-based, in dbt_project/models/)
+# - Bruin transformations (Python-based, in transformations/)
+# - Data contracts (YAML-based, in contracts/)
+#
+# Transformation Types:
+#   type: dbt    - SQL models executed via dbt-duckdb
+#   type: bruin  - Python scripts with transform(con, inputs) function
+#
+# Quality Checks:
+#   - contract:contract_name  - References contracts/contract_name.yml
+#   - script_name             - References transformations/quality/script_name.py
 
-silver:
-  # List of bruin transformations to run for Silver stage
-  # These scripts should be in transformations/ directory
-  - name: orders_clean
+# =============================================================================
+# FINANCE INDUSTRY EXAMPLES
+# =============================================================================
+finance_silver:
+  # dbt transformation for transaction cleansing
+  - name: finance_transactions_verified
+    type: dbt
+    model: finance_transactions_verified
     inputs:
-      - alias: bronze_orders
+      - alias: bronze_transactions
         stage: bronze
-        source_path: "sales_azure/orders.parquet"
+        source_path: "finance/transactions.parquet"
     quality_checks:
-      - contract:orders_clean  # Contract-based quality checks
-    splink:
-      link_type: "dedupe_only"
-      unique_id_column_name: "order_id"
-      blocking_rules_to_generate_predictions: []
-      comparisons: []
-  - name: customers_clean
+      - contract:finance_transactions_verified
+
+  # Bruin transformation for advanced fraud detection (ML-based)
+  - name: finance_fraud_detection
+    type: bruin
     inputs:
-      - alias: bronze_customers
+      - alias: verified_transactions
+        stage: silver
+        source_path: "refined/finance_transactions_verified.parquet"
+    # Note: This creates an enhanced fraud analysis dataset
+
+finance_gold:
+  # dbt transformation for account-level aggregations
+  - name: finance_accounts_summary
+    type: dbt
+    model: finance_accounts_summary
+    inputs:
+      - alias: verified_transactions
+        stage: silver
+        source_path: "refined/finance_transactions_verified.parquet"
+    quality_checks:
+      - contract:finance_accounts_summary
+
+# =============================================================================
+# HEALTH INDUSTRY EXAMPLES
+# =============================================================================
+health_silver:
+  # dbt transformation for encounter data cleansing
+  - name: health_patient_encounters
+    type: dbt
+    model: health_patient_encounters
+    inputs:
+      - alias: bronze_encounters
         stage: bronze
-        source_path: "sales_azure/customers.parquet"
+        source_path: "health/encounters.parquet"
     quality_checks:
-      - contract:customers_clean  # Contract-based quality checks
-    splink:
-      link_type: "dedupe_only"
-      unique_id_column_name: "customer_id"
-      blocking_rules_to_generate_predictions: []
-      comparisons: []
+      - contract:health_patient_encounters
 
-gold:
-  # List of bruin transformations to run for Gold stage
-  # These scripts should be in transformations/ directory
-  - name: daily_sales
+  # Bruin transformation for patient risk stratification (Python-based)
+  - name: health_patient_risk_stratification
+    type: bruin
     inputs:
-      - alias: orders_clean
+      - alias: patient_encounters
         stage: silver
-        source_path: "refined/orders_clean.parquet"
-  - name: customer_metrics
-    inputs:
-      - alias: customers_clean
-        stage: silver
-        source_path: "refined/customers_clean.parquet"
-      - alias: orders_clean
-        stage: silver
-        source_path: "refined/orders_clean.parquet"
+        source_path: "refined/health_patient_encounters.parquet"
+    # Note: This creates a patient risk profile dataset
 
+health_gold:
+  # dbt transformation for readmission analysis
+  - name: health_patient_readmissions
+    type: dbt
+    model: health_patient_readmissions
+    inputs:
+      - alias: patient_encounters
+        stage: silver
+        source_path: "refined/health_patient_encounters.parquet"
+    quality_checks:
+      - contract:health_patient_readmissions
+
+# =============================================================================
+# ENERGY INDUSTRY EXAMPLES
+# =============================================================================
+energy_silver:
+  # dbt transformation for meter reading validation
+  - name: energy_meter_readings
+    type: dbt
+    model: energy_meter_readings
+    inputs:
+      - alias: bronze_readings
+        stage: bronze
+        source_path: "energy/meter_readings.parquet"
+    quality_checks:
+      - contract:energy_meter_readings
+
+  # Bruin transformation for load forecasting (time series analysis)
+  - name: energy_load_forecasting
+    type: bruin
+    inputs:
+      - alias: meter_readings
+        stage: silver
+        source_path: "refined/energy_meter_readings.parquet"
+    # Note: This creates load forecasts per meter
+
+energy_gold:
+  # dbt transformation for consumption analytics
+  - name: energy_consumption_analytics
+    type: dbt
+    model: energy_consumption_analytics
+    inputs:
+      - alias: meter_readings
+        stage: silver
+        source_path: "refined/energy_meter_readings.parquet"
+    quality_checks:
+      - contract:energy_consumption_analytics
+
+# =============================================================================
+# ECOMMERCE INDUSTRY EXAMPLES
+# =============================================================================
+ecommerce_silver:
+  # dbt transformation for user session cleansing
+  - name: ecommerce_user_sessions
+    type: dbt
+    model: ecommerce_user_sessions
+    inputs:
+      - alias: bronze_sessions
+        stage: bronze
+        source_path: "ecommerce/sessions.parquet"
+      - alias: bronze_events
+        stage: bronze
+        source_path: "ecommerce/events.parquet"
+    quality_checks:
+      - contract:ecommerce_user_sessions
+
+  # Bruin transformation for product recommendations (collaborative filtering)
+  - name: ecommerce_product_recommendations
+    type: bruin
+    inputs:
+      - alias: user_sessions
+        stage: silver
+        source_path: "refined/ecommerce_user_sessions.parquet"
+    # Note: This generates personalized product recommendations
+
+ecommerce_gold:
+  # dbt transformation for customer lifetime value
+  - name: ecommerce_customer_lifetime_value
+    type: dbt
+    model: ecommerce_customer_lifetime_value
+    inputs:
+      - alias: user_sessions
+        stage: silver
+        source_path: "refined/ecommerce_user_sessions.parquet"
+    quality_checks:
+      - contract:ecommerce_customer_lifetime_value
+
+# =============================================================================
+# USAGE NOTES
+# =============================================================================
+#
+# To use these transformations:
+#
+# 1. Select your industry and copy the relevant section to your own config file
+#
+# 2. Update source paths to match your bronze data:
+#    source_path: "your_source_name/your_table.parquet"
+#
+# 3. For dbt transformations:
+#    - SQL files must exist in dbt_project/models/silver/ or dbt_project/models/gold/
+#    - Model name must match the SQL file name (without .sql)
+#
+# 4. For Bruin transformations:
+#    - Python files must exist in transformations/
+#    - Must define transform(con, inputs) function
+#    - Can return SQL query string or pandas DataFrame
+#
+# 5. For data contracts:
+#    - YAML files must exist in contracts/
+#    - Reference using "contract:contract_name" in quality_checks
+#
+# 6. Run transformations:
+#    comboi run silver --config configs/your-config.yml
+#    comboi run gold --config configs/your-config.yml
+#    comboi run all --config configs/your-config.yml
+#
+# =============================================================================
+# MIXING BRUIN AND DBT
+# =============================================================================
+#
+# You can mix Bruin and dbt transformations in the same pipeline:
+#
+# silver:
+#   - name: simple_cleansing
+#     type: dbt              # Use dbt for simple SQL transformations
+#     model: simple_cleansing
+#
+#   - name: complex_ml_features
+#     type: bruin            # Use Bruin for complex Python logic
+#     inputs: [...]
+#
+# Choose based on your needs:
+# - dbt: SQL transformations, standard cleansing, aggregations, dbt testing
+# - Bruin: Complex Python logic, ML features, custom algorithms
+#
+# =============================================================================

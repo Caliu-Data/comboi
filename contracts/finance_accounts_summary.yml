@@ -1,0 +1,86 @@
+version: "1.0.0"
+dataset: "finance_accounts_summary"
+stage: "gold"
+owner: "finance-analytics-team"
+description: "Account-level summary metrics and balances"
+
+schema:
+  columns:
+    - name: account_id
+      type: VARCHAR
+      nullable: false
+      description: "Unique account identifier"
+      constraints:
+        - unique: true
+        - not_null: true
+    - name: account_type
+      type: VARCHAR
+      nullable: false
+      description: "Type of account"
+      constraints:
+        - allowed_values: ["checking", "savings", "credit", "investment"]
+    - name: current_balance
+      type: DECIMAL
+      nullable: false
+      description: "Current account balance"
+      constraints:
+        - not_null: true
+    - name: total_deposits
+      type: DECIMAL
+      nullable: false
+      description: "Total deposits in period"
+      constraints:
+        - min_value: 0
+    - name: total_withdrawals
+      type: DECIMAL
+      nullable: false
+      description: "Total withdrawals in period"
+      constraints:
+        - min_value: 0
+    - name: transaction_count
+      type: INTEGER
+      nullable: false
+      description: "Number of transactions in period"
+      constraints:
+        - min_value: 0
+    - name: avg_transaction_amount
+      type: DECIMAL
+      nullable: true
+      description: "Average transaction amount"
+    - name: high_risk_transaction_count
+      type: INTEGER
+      nullable: false
+      description: "Count of high-risk transactions (fraud_score > 0.7)"
+      constraints:
+        - min_value: 0
+
+quality_rules:
+  - name: "no_duplicate_accounts"
+    type: "uniqueness"
+    column: "account_id"
+    severity: "error"
+  - name: "positive_deposits"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE total_deposits < 0"
+    expected: 0
+    severity: "error"
+  - name: "positive_withdrawals"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE total_withdrawals < 0"
+    expected: 0
+    severity: "error"
+  - name: "minimum_accounts"
+    type: "volume"
+    min_rows: 1
+    severity: "error"
+
+sla:
+  freshness:
+    max_age_hours: 24
+    schedule: "daily"
+  completeness:
+    min_row_count: 10
+
+evolution:
+  backward_compatible: true
+  breaking_changes_allowed: false

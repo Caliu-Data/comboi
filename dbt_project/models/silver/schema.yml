@@ -1,0 +1,70 @@
+version: 2
+
+models:
+  # Finance Models
+  - name: finance_transactions_verified
+    description: "Verified and cleansed financial transactions with fraud detection"
+    columns:
+      - name: transaction_id
+        description: "Unique transaction identifier"
+        tests:
+          - unique
+          - not_null
+      - name: account_id
+        description: "Account identifier"
+        tests:
+          - not_null
+      - name: amount
+        description: "Transaction amount"
+        tests:
+          - not_null
+
+  # Health Models
+  - name: health_patient_encounters
+    description: "Cleansed patient encounter records"
+    columns:
+      - name: encounter_id
+        description: "Unique encounter identifier"
+        tests:
+          - unique
+          - not_null
+      - name: patient_id
+        description: "Patient identifier"
+        tests:
+          - not_null
+      - name: primary_diagnosis
+        description: "Primary ICD-10 diagnosis code"
+        tests:
+          - not_null
+
+  # Energy Models
+  - name: energy_meter_readings
+    description: "Validated smart meter readings with anomaly detection"
+    columns:
+      - name: reading_id
+        description: "Unique reading identifier"
+        tests:
+          - unique
+          - not_null
+      - name: meter_id
+        description: "Smart meter identifier"
+        tests:
+          - not_null
+      - name: consumption_kwh
+        description: "Energy consumption in kilowatt-hours"
+        tests:
+          - not_null
+
+  # Ecommerce Models
+  - name: ecommerce_user_sessions
+    description: "Cleansed user session data with behavioral metrics"
+    columns:
+      - name: session_id
+        description: "Unique session identifier"
+        tests:
+          - unique
+          - not_null
+      - name: conversion_flag
+        description: "Whether session resulted in purchase"
+        tests:
+          - not_null
