@@ -44,9 +44,9 @@ checkpoints/
 logs/
 *.parquet
 
-# Transformations (bruin)
-transformations/__pycache__/
-transformations/*.pyc
+# Transformations
+transformations/bruin/__pycache__/
+transformations/bruin/*.pyc
 
 # Terraform
 .terraform/
@@ -77,10 +77,10 @@ coverage.xml
 .ruff_cache/
 
 # dbt
-dbt_project/target/
-dbt_project/dbt_packages/
-dbt_project/logs/
-dbt_project/profiles.yml  # Generated from template
+transformations/dbt/target/
+transformations/dbt/dbt_packages/
+transformations/dbt/logs/
+transformations/dbt/profiles.yml  # Generated from template
 
 # OS
 .DS_Store

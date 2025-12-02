@@ -17,7 +17,7 @@ from textwrap import dedent
 
 def create_dbt_model(name: str, stage: str, industry: str) -> None:
     """Create a dbt SQL model template."""
-    model_path = Path(f"dbt_project/models/{stage}/{name}.sql")
+    model_path = Path(f"transformations/dbt/models/{stage}/{name}.sql")
     model_path.parent.mkdir(parents=True, exist_ok=True)
 
     template = dedent(f"""
@@ -74,7 +74,7 @@ def create_dbt_model(name: str, stage: str, industry: str) -> None:
 
 def create_bruin_transformation(name: str, stage: str, industry: str) -> None:
     """Create a Bruin Python transformation template."""
-    transform_path = Path(f"transformations/{name}.py")
+    transform_path = Path(f"transformations/bruin/{name}.py")
     transform_path.parent.mkdir(parents=True, exist_ok=True)
 
     template = dedent(f'''
@@ -137,7 +137,7 @@ def create_bruin_transformation(name: str, stage: str, industry: str) -> None:
 
 def create_data_contract(name: str, stage: str, industry: str) -> None:
     """Create a data contract template."""
-    contract_path = Path(f"contracts/{name}.yml")
+    contract_path = Path(f"transformations/contracts/{name}.yml")
     contract_path.parent.mkdir(parents=True, exist_ok=True)
 
     template = dedent(f'''

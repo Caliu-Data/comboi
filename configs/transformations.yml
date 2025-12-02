@@ -2,17 +2,17 @@
 # Industry-specific examples for Finance, Health, Energy, and Ecommerce
 #
 # This file demonstrates how to use:
-# - dbt transformations (SQL-based, in dbt_project/models/)
-# - Bruin transformations (Python-based, in transformations/)
-# - Data contracts (YAML-based, in contracts/)
+# - dbt transformations (SQL-based, in transformations/dbt/models/)
+# - Bruin transformations (Python-based, in transformations/bruin/)
+# - Data contracts (YAML-based, in transformations/contracts/)
 #
 # Transformation Types:
 #   type: dbt    - SQL models executed via dbt-duckdb
 #   type: bruin  - Python scripts with transform(con, inputs) function
 #
 # Quality Checks:
-#   - contract:contract_name  - References contracts/contract_name.yml
-#   - script_name             - References transformations/quality/script_name.py
+#   - contract:contract_name  - References transformations/contracts/contract_name.yml
+#   - script_name             - References transformations/bruin/quality/script_name.py
 
 # =============================================================================
 # FINANCE INDUSTRY EXAMPLES
@@ -173,16 +173,16 @@ ecommerce_gold:
 #    source_path: "your_source_name/your_table.parquet"
 #
 # 3. For dbt transformations:
-#    - SQL files must exist in dbt_project/models/silver/ or dbt_project/models/gold/
+#    - SQL files must exist in transformations/dbt/models/silver/ or transformations/dbt/models/gold/
 #    - Model name must match the SQL file name (without .sql)
 #
 # 4. For Bruin transformations:
-#    - Python files must exist in transformations/
+#    - Python files must exist in transformations/bruin/
 #    - Must define transform(con, inputs) function
 #    - Can return SQL query string or pandas DataFrame
 #
 # 5. For data contracts:
-#    - YAML files must exist in contracts/
+#    - YAML files must exist in transformations/contracts/
 #    - Reference using "contract:contract_name" in quality_checks
 #
 # 6. Run transformations:

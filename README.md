@@ -42,9 +42,9 @@ Comboi includes production-ready examples across four industries, demonstrating 
 - **Contracts**: Session metrics, conversion validation, CLV computation
 
 📂 **Examples Location:**
-- Contracts: `contracts/*_*.yml`
-- dbt Models: `dbt_project/models/silver/*.sql`, `dbt_project/models/gold/*.sql`
-- Bruin Scripts: `transformations/*_*.py`
+- Contracts: `transformations/contracts/*_*.yml`
+- dbt Models: `transformations/dbt/models/silver/*.sql`, `transformations/dbt/models/gold/*.sql`
+- Bruin Scripts: `transformations/bruin/*_*.py`
 - Configuration: `configs/transformations.yml`
 
 ## 📁 Repository Structure
@@ -55,22 +55,23 @@ Comboi includes production-ready examples across four industries, demonstrating 
 │   ├── initial.yml            # Infrastructure and source configuration
 │   ├── transformations.yml     # Transformation and quality check definitions
 │   └── default.yml            # Example configuration
-├── contracts/                  # Data contract definitions (YAML)
-│   ├── finance_*.yml          # Finance industry contracts
-│   ├── health_*.yml           # Healthcare industry contracts
-│   ├── energy_*.yml           # Energy industry contracts
-│   └── ecommerce_*.yml        # Ecommerce industry contracts
-├── transformations/            # Bruin transformation scripts (Python)
-│   ├── finance_*.py           # Finance transformations (ML, fraud detection)
-│   ├── health_*.py            # Healthcare transformations (risk models)
-│   ├── energy_*.py            # Energy transformations (forecasting)
-│   └── ecommerce_*.py         # Ecommerce transformations (recommendations)
-├── dbt_project/               # dbt transformation models (SQL)
-│   ├── dbt_project.yml        # dbt project configuration
-│   ├── profiles.yml.template  # dbt connection profile template
-│   └── models/                # dbt SQL models
-│       ├── silver/            # Silver layer models
-│       └── gold/              # Gold layer models
+├── transformations/            # All transformation assets
+│   ├── bruin/                 # Bruin transformation scripts (Python)
+│   │   ├── finance_*.py       # Finance transformations (ML, fraud detection)
+│   │   ├── health_*.py        # Healthcare transformations (risk models)
+│   │   ├── energy_*.py        # Energy transformations (forecasting)
+│   │   └── ecommerce_*.py     # Ecommerce transformations (recommendations)
+│   ├── dbt/                   # dbt transformation models (SQL)
+│   │   ├── dbt_project.yml    # dbt project configuration
+│   │   ├── profiles.yml.template  # dbt connection profile template
+│   │   └── models/            # dbt SQL models
+│   │       ├── silver/        # Silver layer models
+│   │       └── gold/          # Gold layer models
+│   └── contracts/             # Data contract definitions (YAML)
+│       ├── finance_*.yml      # Finance industry contracts
+│       ├── health_*.yml       # Healthcare industry contracts
+│       ├── energy_*.yml       # Energy industry contracts
+│       └── ecommerce_*.yml    # Ecommerce industry contracts
 ├── src/comboi/                # Main application code
 │   ├── connectors/            # Source connectors (Azure SQL, PostgreSQL)
 │   ├── contracts/             # Data contract validation
