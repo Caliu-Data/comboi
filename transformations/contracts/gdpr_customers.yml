@@ -1,0 +1,153 @@
+version: "1.0.0"
+dataset: "gdpr_customers"
+stage: "silver"
+owner: "data-governance-team"
+description: "GDPR-compliant customer data with privacy controls and data quality checks"
+
+schema:
+  columns:
+    - name: customer_id
+      type: VARCHAR
+      nullable: false
+      description: "Unique customer identifier (pseudonymized)"
+      constraints:
+        - unique: true
+        - not_null: true
+    - name: email_hash
+      type: VARCHAR
+      nullable: true
+      description: "SHA-256 hash of customer email for matching (GDPR: pseudonymized)"
+      constraints:
+        - pattern: "^[a-f0-9]{64}$"
+    - name: country_code
+      type: VARCHAR
+      nullable: false
+      description: "ISO 3166-1 alpha-2 country code for GDPR jurisdiction"
+      constraints:
+        - not_null: true
+        - pattern: "^[A-Z]{2}$"
+    - name: consent_marketing
+      type: BOOLEAN
+      nullable: false
+      description: "Marketing consent flag (GDPR Article 6)"
+      constraints:
+        - not_null: true
+    - name: consent_analytics
+      type: BOOLEAN
+      nullable: false
+      description: "Analytics consent flag (GDPR Article 6)"
+      constraints:
+        - not_null: true
+    - name: consent_timestamp
+      type: TIMESTAMP
+      nullable: true
+      description: "Timestamp when consent was given"
+    - name: data_subject_rights_exercised
+      type: VARCHAR
+      nullable: true
+      description: "Record of GDPR rights exercised (access, rectification, erasure, etc.)"
+      constraints:
+        - allowed_values: ["none", "access", "rectification", "erasure", "restriction", "portability", "objection"]
+    - name: retention_category
+      type: VARCHAR
+      nullable: false
+      description: "Data retention category for lifecycle management"
+      constraints:
+        - allowed_values: ["active", "inactive", "to_delete", "deleted"]
+    - name: created_at
+      type: TIMESTAMP
+      nullable: false
+      description: "Record creation timestamp"
+      constraints:
+        - not_null: true
+    - name: updated_at
+      type: TIMESTAMP
+      nullable: false
+      description: "Record last update timestamp"
+      constraints:
+        - not_null: true
+    - name: gdpr_delete_after
+      type: DATE
+      nullable: true
+      description: "Date after which record should be deleted per retention policy"
+
+quality_rules:
+  - name: "no_duplicate_customers"
+    type: "uniqueness"
+    column: "customer_id"
+    severity: "error"
+  - name: "no_null_customer_ids"
+    type: "not_null"
+    column: "customer_id"
+    severity: "error"
+  - name: "valid_country_codes"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE LENGTH(country_code) != 2 OR country_code != UPPER(country_code)"
+    expected: 0
+    severity: "error"
+  - name: "valid_email_hashes"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE email_hash IS NOT NULL AND (LENGTH(email_hash) != 64 OR email_hash !~ '^[a-f0-9]+$')"
+    expected: 0
+    severity: "error"
+  - name: "consent_timestamp_present_when_consent_given"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE (consent_marketing = true OR consent_analytics = true) AND consent_timestamp IS NULL"
+    expected: 0
+    severity: "error"
+  - name: "updated_at_not_before_created_at"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE updated_at < created_at"
+    expected: 0
+    severity: "error"
+  - name: "retention_flagged_for_deletion"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE retention_category = 'to_delete' AND gdpr_delete_after IS NULL"
+    expected: 0
+    severity: "warning"
+  - name: "minimum_customers"
+    type: "volume"
+    min_rows: 1
+    severity: "error"
+
+sla:
+  freshness:
+    max_age_hours: 24
+    schedule: "daily"
+  completeness:
+    min_row_count: 1
+  data_retention:
+    max_age_days: 2555  # 7 years (common GDPR retention period)
+    deletion_policy: "Automatic deletion after retention period expires"
+
+evolution:
+  backward_compatible: true
+  breaking_changes_allowed: false
+  deprecation_notice_days: 30
+  schema_registry:
+    enabled: true
+    registry_path: "transformations/contracts/.registry"
+  migration_strategy: "strict"  # strict, lenient, or auto
+  changelog:
+    - version: "1.0.0"
+      date: "2024-12-05"
+      changes:
+        - "Initial schema with GDPR compliance"
+        - "Pseudonymized email_hash field"
+        - "Consent tracking fields"
+
+privacy:
+  classification: "PII"
+  gdpr_applicable: true
+  data_controller: "Your Organization"
+  lawful_basis: "Consent (Article 6(1)(a))"
+  special_categories: false
+  data_subject_rights:
+    - "Right of access (Article 15)"
+    - "Right to rectification (Article 16)"
+    - "Right to erasure (Article 17)"
+    - "Right to restriction of processing (Article 18)"
+    - "Right to data portability (Article 20)"
+    - "Right to object (Article 21)"
+  retention_period: "7 years from last interaction or until consent withdrawal"
+  cross_border_transfers: "Adequate safeguards required (Article 46)"

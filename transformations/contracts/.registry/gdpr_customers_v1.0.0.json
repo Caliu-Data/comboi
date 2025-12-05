@@ -1,0 +1,23 @@
+{
+  "dataset": "gdpr_customers",
+  "version": "1.0.0",
+  "timestamp": "2024-12-05T00:00:00Z",
+  "checksum": "sha256:abc123...",
+  "schema_fingerprint": {
+    "columns": [
+      {"name": "customer_id", "type": "VARCHAR", "nullable": false},
+      {"name": "email_hash", "type": "VARCHAR", "nullable": true},
+      {"name": "country_code", "type": "VARCHAR", "nullable": false},
+      {"name": "consent_marketing", "type": "BOOLEAN", "nullable": false},
+      {"name": "consent_analytics", "type": "BOOLEAN", "nullable": false},
+      {"name": "consent_timestamp", "type": "TIMESTAMP", "nullable": true},
+      {"name": "data_subject_rights_exercised", "type": "VARCHAR", "nullable": true},
+      {"name": "retention_category", "type": "VARCHAR", "nullable": false},
+      {"name": "created_at", "type": "TIMESTAMP", "nullable": false},
+      {"name": "updated_at", "type": "TIMESTAMP", "nullable": false},
+      {"name": "gdpr_delete_after", "type": "DATE", "nullable": true}
+    ]
+  },
+  "compatible_with": [],
+  "incompatible_with": []
+}

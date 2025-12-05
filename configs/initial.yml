@@ -45,9 +45,8 @@ stages:
       file_system: "silver"
       credential: "{{keyvault:adls-storage-key}}"
     remote_path_template: "{stage}/{source}/{table}.parquet"
-    transformations_path: "transformations/bruin"
+    transformations_path: "transformations/sql"
     contracts_path: "transformations/contracts"
-    dbt_project_path: "transformations/dbt"
     splink:
       enabled: true
   gold:
@@ -57,8 +56,7 @@ stages:
       file_system: "gold"
       credential: "{{keyvault:adls-storage-key}}"
     remote_path_template: "{stage}/{source}/{table}.parquet"
-    transformations_path: "transformations/bruin"
-    dbt_project_path: "transformations/dbt"
+    transformations_path: "transformations/sql"
 
 monitoring:
   log_path: "logs/pipeline.log"
