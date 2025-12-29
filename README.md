@@ -6,7 +6,7 @@
 
 ## 🚀 Key Features
 
-- **Bronze Landing**: Incremental extracts from Azure SQL Database and PostgreSQL using DuckDB, persisted as Parquet in Azure Data Lake Storage (ADLS) with checkpointing to avoid full reloads
+- **Bronze Landing**: Incremental extracts from Azure SQL Database, PostgreSQL, and SAP Business One using DuckDB, persisted as Parquet in Azure Data Lake Storage (ADLS) with checkpointing to avoid full reloads
 - **Silver Refinement**: Data cleansing using **Data Contracts** with quality checks and Splink-based deduplication, materialized back to ADLS
 - **Gold Metrics**: Aggregations and business-ready metrics generated in DuckDB and delivered to ADLS
 - **Contract-Driven SQL**: DuckDB SQL transformations automatically generated from data contracts
@@ -32,10 +32,11 @@
 │       ├── gdpr_customers.yml  # Sample GDPR-compliant contract
 │       └── README.md          # Contract documentation
 ├── src/comboi/                # Main application code
-│   ├── connectors/            # Source connectors (Azure SQL, PostgreSQL)
+│   ├── connectors/            # Source connectors (Azure SQL, PostgreSQL, SAP B1)
 │   ├── contracts/             # Data contract validation
 │   ├── io/                    # ADLS client
 │   ├── pipeline/              # Pipeline orchestration
+│   ├── gdpr.py                # GDPR compliance utilities
 │   ├── cli.py                 # CLI entry point
 │   └── runner.py              # Driver factory
 ├── azure_functions/           # Azure Functions entrypoints
@@ -54,8 +55,9 @@
 ### Medallion Data Architecture
 
 **Bronze (Landing Zone)**
-- Extracts raw data from source systems (Azure SQL, PostgreSQL)
-- Uses DuckDB extensions (`odbc`, `postgres_scanner`) for direct connection
+- Extracts raw data from source systems (Azure SQL, PostgreSQL, SAP Business One)
+- Uses DuckDB extensions (`odbc`, `postgres_scanner`) for database connections
+- SAP B1 connector reads from pre-extracted Parquet files with GDPR compliance
 - Incremental loads with checkpointing to avoid full reloads
 - Persists as Parquet files in ADLS
 
@@ -742,8 +744,54 @@ All quality checks are defined in data contracts. See `transformations/contracts
 - Check that logs are being written (structured JSON format)
 - Review Function App logs in Azure Portal
 
+## 🏢 SAP Business One Connector
+
+Comboi includes a specialized connector for SAP Business One ERP systems with built-in GDPR compliance.
+
+### Features
+
+- **File-Based Extraction**: Reads from pre-extracted Parquet files in ADLS/S3
+- **GDPR Compliance**: Automatic pseudonymization and PII exclusion
+- **16 Core Tables**: Pre-configured for services company KPIs
+- **Incremental Loading**: Delta loading via UpdateDate/RefDate
+- **Partitioned Data**: Supports both partitioned and non-partitioned files
+
+### Quick Start
+
+```yaml
+# configs/sap_b1_example.yml
+sources:
+  - name: sap_b1_services
+    type: sap_b1
+    connection:
+      source_storage_path: "abfss://raw@storage.dfs.core.windows.net/sap_b1"
+      apply_gdpr: true
+    tables:
+      - name: OINV  # AR Invoices
+        incremental_column: "UpdateDate"
+      - name: OCRD  # Customers (GDPR applied)
+        incremental_column: "UpdateDate"
+```
+
+### GDPR Protection
+
+Automatically applies data protection rules:
+- **Removed**: Phone, Email, Address, Tax IDs
+- **Pseudonymized** (SHA-256): Customer names, Project names, Employee names
+- **Retained**: All financial data, transaction amounts, reference codes
+
+### Documentation
+
+See [SAP_B1_CONNECTOR.md](SAP_B1_CONNECTOR.md) for complete documentation including:
+- Supported tables and KPI mappings
+- GDPR compliance details
+- Configuration examples
+- Transformation templates
+- Troubleshooting guide
+
 ## 📚 Additional Resources
 
+- **SAP B1 Connector**: See [SAP_B1_CONNECTOR.md](SAP_B1_CONNECTOR.md) for SAP Business One integration
 - **Data Contracts**: See [transformations/contracts/README.md](transformations/contracts/README.md) for contract documentation
 - **SQL Transformations**: See [transformations/sql/README.md](transformations/sql/README.md) for SQL transformation guidelines
 - **DuckDB**: [https://duckdb.org/](https://duckdb.org/)

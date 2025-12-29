@@ -1,0 +1,183 @@
+# SAP Business One Table Configurations
+# Pre-configured extraction settings for 16 core SAP B1 tables
+# Based on the Services Company KPI architecture
+
+# This configuration defines the recommended extraction strategy for each table:
+# - Incremental: Uses UpdateDate/RefDate for delta loading
+# - Full: Complete snapshot on each run
+# - Frequency: Recommended extraction schedule
+# - GDPR: Automatically applied via connector (see comboi.gdpr module)
+
+tables:
+  # ============================================================================
+  # TIER 1: ABSOLUTELY ESSENTIAL (P0)
+  # ============================================================================
+
+  # AR Invoice Headers - Revenue tracking
+  - name: OINV
+    description: "Accounts Receivable Invoice Headers"
+    priority: P0
+    kpis: ["Total Revenue", "Revenue by Customer", "Revenue by Project", "DSO"]
+    incremental_column: "UpdateDate"
+    records_per_month: "500-5K"
+    strategy: incremental
+    frequency: hourly
+
+  # AR Invoice Lines - Revenue detail
+  - name: INV1
+    description: "Accounts Receivable Invoice Lines"
+    priority: P0
+    kpis: ["Revenue by Service", "Revenue by Project", "Service Margin"]
+    incremental_column: "UpdateDate"
+    records_per_month: "2K-20K"
+    strategy: incremental
+    frequency: hourly
+
+  # Business Partners - Customer master
+  - name: OCRD
+    description: "Business Partners (Customers/Vendors)"
+    priority: P0
+    kpis: ["Revenue by Customer", "Customer Concentration", "New vs Repeat"]
+    incremental_column: "UpdateDate"
+    records_per_month: "100-1K"
+    strategy: incremental
+    frequency: daily
+    gdpr: true  # PII - pseudonymization applied
+
+  # Projects - Project master
+  - name: OPRJ
+    description: "Projects"
+    priority: P0
+    kpis: ["Revenue by Project", "Project Profitability", "Active Projects"]
+    incremental_column: "UpdateDate"
+    records_per_month: "50-500"
+    strategy: incremental
+    frequency: daily
+    gdpr: true  # May contain client names
+
+  # Items/Services - Service master
+  - name: OITM
+    description: "Items/Services Master"
+    priority: P0
+    kpis: ["Revenue by Service", "Service Margin"]
+    records_per_month: "100-500"
+    strategy: full  # Full snapshot
+    frequency: weekly
+
+  # Chart of Accounts - GL master
+  - name: OACT
+    description: "Chart of Accounts"
+    priority: P0
+    kpis: ["Cost Center P&L", "Financial Reporting"]
+    records_per_month: "200-500"
+    strategy: full  # Full snapshot
+    frequency: weekly
+
+  # Incoming Payments - Cash collection
+  - name: ORCT
+    description: "Incoming Payments"
+    priority: P0
+    kpis: ["Cash Collected", "DSO", "Collection Rate"]
+    incremental_column: "UpdateDate"
+    records_per_month: "200-2K"
+    strategy: incremental
+    frequency: hourly
+
+  # Journal Lines - GL detail
+  - name: JDT1
+    description: "Journal Entry Lines"
+    priority: P0
+    kpis: ["Cost Center P&L", "Financial Reporting"]
+    incremental_column: "RefDate"
+    records_per_month: "5K-50K"
+    strategy: incremental
+    frequency: daily
+
+  # ============================================================================
+  # TIER 2: IMPORTANT FOR FULL PICTURE (P1)
+  # ============================================================================
+
+  # AP Invoice Headers - Cost tracking
+  - name: OPCH
+    description: "Accounts Payable Invoice Headers"
+    priority: P1
+    kpis: ["Gross Margin", "DPO", "Project Profitability"]
+    incremental_column: "UpdateDate"
+    records_per_month: "200-2K"
+    strategy: incremental
+    frequency: hourly
+
+  # AP Invoice Lines - Cost detail
+  - name: PCH1
+    description: "Accounts Payable Invoice Lines"
+    priority: P1
+    kpis: ["Gross Margin", "Project Profitability", "Service Margin"]
+    incremental_column: "UpdateDate"
+    records_per_month: "1K-10K"
+    strategy: incremental
+    frequency: hourly
+
+  # Outgoing Payments - Cash disbursement
+  - name: OVPM
+    description: "Outgoing Payments"
+    priority: P1
+    kpis: ["DPO", "Cash Flow"]
+    incremental_column: "UpdateDate"
+    records_per_month: "100-1K"
+    strategy: incremental
+    frequency: hourly
+
+  # BP Groups - Customer segmentation
+  - name: OCRG
+    description: "Business Partner Groups"
+    priority: P1
+    kpis: ["Customer Segmentation"]
+    records_per_month: "~50"
+    strategy: full  # Static reference data
+    frequency: weekly
+
+  # Item Groups - Service categorization
+  - name: OITB
+    description: "Item Groups"
+    priority: P1
+    kpis: ["Revenue by Category"]
+    records_per_month: "~20"
+    strategy: full  # Static reference data
+    frequency: weekly
+
+  # Cost Centers - Department tracking
+  - name: OOCR
+    description: "Cost Centers / Profit Centers"
+    priority: P1
+    kpis: ["Cost Center P&L"]
+    records_per_month: "~50"
+    strategy: full  # Static reference data
+    frequency: weekly
+
+  # Sales Employees - Sales rep master
+  - name: OSLP
+    description: "Sales Employees"
+    priority: P1
+    kpis: ["Revenue per Employee"]
+    incremental_column: "UpdateDate"
+    records_per_month: "~20"
+    strategy: incremental
+    frequency: daily
+    gdpr: true  # Contains employee names/contact info
+
+  # Payment Invoices - Payment allocation
+  - name: RCT2
+    description: "Payment Invoices (Allocation)"
+    priority: P1
+    kpis: ["Collection Rate", "DSO"]
+    incremental_column: "UpdateDate"
+    records_per_month: "200-2K"
+    strategy: incremental
+    frequency: hourly
+
+# ============================================================================
+# EXTRACTION SCHEDULE SUMMARY
+# ============================================================================
+# Hourly: OINV, INV1, OPCH, PCH1, ORCT, OVPM, RCT2 (transaction tables)
+# Daily: OCRD, OPRJ, OSLP, JDT1 (master + journal)
+# Weekly: OITM, OACT, OCRG, OITB, OOCR (reference data)

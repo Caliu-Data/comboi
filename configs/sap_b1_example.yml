@@ -1,0 +1,280 @@
+# SAP Business One → Databricks Example Configuration
+# This demonstrates the complete pipeline for extracting SAP B1 data with GDPR compliance
+# and transforming it through the medallion architecture (Bronze → Silver → Gold)
+
+# ============================================================================
+# AZURE KEY VAULT CONFIGURATION
+# ============================================================================
+key_vault:
+  vault_url: "https://your-keyvault.vault.azure.net/"
+
+# ============================================================================
+# QUEUE CONFIGURATION (for Azure Functions orchestration)
+# ============================================================================
+queue:
+  connection_string: "{{keyvault:queue-connection-string}}"
+  queue_name: "comboi-sap-tasks"
+  visibility_timeout: 600  # 10 minutes for SAP B1 processing
+
+# ============================================================================
+# DATA SOURCES
+# ============================================================================
+sources:
+  # SAP Business One - Services Company (16 Core Tables)
+  - name: sap_b1_services
+    type: sap_b1
+    description: "SAP Business One ERP - Services company with GDPR compliance"
+
+    # Connection configuration
+    connection:
+      # Source storage path where SAP B1 extracts are stored
+      # Supports ADLS (abfss://), S3 (s3://), or local paths
+      # Files should be organized as: {source_storage_path}/{table_name}/[dt=YYYY-MM-DD/]*.parquet
+      source_storage_path: "abfss://raw@yourstorage.dfs.core.windows.net/sap_b1"
+
+      # Enable GDPR pseudonymization (default: true)
+      # When enabled, applies pre-configured rules from comboi.gdpr module
+      apply_gdpr: true
+
+      # Optional: Azure credential if accessing ADLS
+      # credential: "{{keyvault:adls-storage-key}}"
+
+    # Checkpoint key for incremental loading
+    checkpoint_key: "sap_b1_services"
+
+    # ============================================================================
+    # TABLE CONFIGURATIONS
+    # ============================================================================
+    tables:
+      # ------------------------------------------------------------------------
+      # TIER 1: CORE TRANSACTION TABLES (Hourly Incremental)
+      # ------------------------------------------------------------------------
+
+      # AR Invoices (Revenue)
+      - name: OINV
+        query: "SELECT * FROM OINV"  # Placeholder - actual query executed by connector
+        incremental_column: "UpdateDate"
+        source_file_pattern: "**/*.parquet"  # Supports partitioned data
+
+      - name: INV1
+        query: "SELECT * FROM INV1"
+        incremental_column: "UpdateDate"
+        source_file_pattern: "**/*.parquet"
+
+      # AP Invoices (Costs)
+      - name: OPCH
+        query: "SELECT * FROM OPCH"
+        incremental_column: "UpdateDate"
+        source_file_pattern: "**/*.parquet"
+
+      - name: PCH1
+        query: "SELECT * FROM PCH1"
+        incremental_column: "UpdateDate"
+        source_file_pattern: "**/*.parquet"
+
+      # Payments
+      - name: ORCT
+        query: "SELECT * FROM ORCT"
+        incremental_column: "UpdateDate"
+        source_file_pattern: "**/*.parquet"
+
+      - name: OVPM
+        query: "SELECT * FROM OVPM"
+        incremental_column: "UpdateDate"
+        source_file_pattern: "**/*.parquet"
+
+      - name: RCT2
+        query: "SELECT * FROM RCT2"
+        incremental_column: "UpdateDate"
+        source_file_pattern: "**/*.parquet"
+
+      # ------------------------------------------------------------------------
+      # TIER 1: MASTER & JOURNAL DATA (Daily Incremental)
+      # ------------------------------------------------------------------------
+
+      # Business Partners (GDPR: Pseudonymizes CardName, excludes PII)
+      - name: OCRD
+        query: "SELECT * FROM OCRD"
+        incremental_column: "UpdateDate"
+        source_file_pattern: "**/*.parquet"
+
+      # Projects (GDPR: Pseudonymizes PrjName)
+      - name: OPRJ
+        query: "SELECT * FROM OPRJ"
+        incremental_column: "UpdateDate"
+        source_file_pattern: "**/*.parquet"
+
+      # Sales Employees (GDPR: Pseudonymizes SlpName, excludes contact info)
+      - name: OSLP
+        query: "SELECT * FROM OSLP"
+        incremental_column: "UpdateDate"
+        source_file_pattern: "**/*.parquet"
+
+      # Journal Entries
+      - name: JDT1
+        query: "SELECT * FROM JDT1"
+        incremental_column: "RefDate"
+        source_file_pattern: "**/*.parquet"
+
+      # ------------------------------------------------------------------------
+      # TIER 1 & 2: REFERENCE DATA (Weekly Full Snapshot)
+      # ------------------------------------------------------------------------
+
+      # Items/Services
+      - name: OITM
+        query: "SELECT * FROM OITM"
+        # No incremental_column = full snapshot
+        source_file_pattern: "*.parquet"
+
+      # Chart of Accounts
+      - name: OACT
+        query: "SELECT * FROM OACT"
+        source_file_pattern: "*.parquet"
+
+      # Business Partner Groups
+      - name: OCRG
+        query: "SELECT * FROM OCRG"
+        source_file_pattern: "*.parquet"
+
+      # Item Groups
+      - name: OITB
+        query: "SELECT * FROM OITB"
+        source_file_pattern: "*.parquet"
+
+      # Cost Centers
+      - name: OOCR
+        query: "SELECT * FROM OOCR"
+        source_file_pattern: "*.parquet"
+
+# ============================================================================
+# MEDALLION ARCHITECTURE STAGES
+# ============================================================================
+
+stages:
+  # --------------------------------------------------------------------------
+  # BRONZE LAYER: Raw Landing with GDPR Applied
+  # --------------------------------------------------------------------------
+  bronze:
+    checkpoint_path: "checkpoints/sap_b1_bronze.json"
+    local_path: "data/bronze"
+    data_lake:
+      account_name: "{{env:DATA_LAKE_ACCOUNT_NAME}}"
+      file_system: "bronze"
+      credential: "{{keyvault:adls-storage-key}}"
+    remote_path_template: "{stage}/{source}/{table}.parquet"
+
+  # --------------------------------------------------------------------------
+  # SILVER LAYER: Cleansed & Validated
+  # --------------------------------------------------------------------------
+  silver:
+    local_path: "data/silver"
+    data_lake:
+      account_name: "{{env:DATA_LAKE_ACCOUNT_NAME}}"
+      file_system: "silver"
+      credential: "{{keyvault:adls-storage-key}}"
+    remote_path_template: "{stage}/{source}/{table}.parquet"
+    transformations_path: "transformations/sql"
+    contracts_path: "transformations/contracts"
+
+  # --------------------------------------------------------------------------
+  # GOLD LAYER: Business Metrics
+  # --------------------------------------------------------------------------
+  gold:
+    local_path: "data/gold"
+    data_lake:
+      account_name: "{{env:DATA_LAKE_ACCOUNT_NAME}}"
+      file_system: "gold"
+      credential: "{{keyvault:adls-storage-key}}"
+    remote_path_template: "{stage}/{source}/{table}.parquet"
+    transformations_path: "transformations/sql"
+
+# ============================================================================
+# MONITORING & LOGGING
+# ============================================================================
+monitoring:
+  log_path: "logs/sap_b1_pipeline.log"
+  metrics_path: "logs/sap_b1_metrics.json"
+
+# ============================================================================
+# USAGE INSTRUCTIONS
+# ============================================================================
+#
+# 1. Prerequisites:
+#    - SAP B1 data already extracted to object storage in Parquet format
+#    - Storage organized as: /raw/sap_b1/{table_name}/[dt=YYYY-MM-DD/]*.parquet
+#    - Azure Key Vault configured with required secrets
+#    - ADLS containers created: bronze, silver, gold
+#
+# 2. Setup Environment Variables:
+#    export DATA_LAKE_ACCOUNT_NAME="yourstorage"
+#
+# 3. Run the Pipeline:
+#    # Plan execution
+#    comboi plan --config configs/sap_b1_example.yml
+#
+#    # Run all stages
+#    comboi run all --config configs/sap_b1_example.yml
+#
+#    # Run specific stage
+#    comboi run bronze --config configs/sap_b1_example.yml
+#
+# 4. Verify GDPR Compliance:
+#    # Bronze layer should have:
+#    # - OCRD: CardName_Hash instead of CardName, no Phone/Email/Address
+#    # - OPRJ: PrjName_Hash instead of PrjName
+#    # - OSLP: SlpName_Hash instead of SlpName, no Email/Mobile
+#    # - All transaction tables: Retained as-is (no PII)
+#
+# 5. Expected Outputs:
+#    Bronze: 16 Parquet files with GDPR-compliant data
+#    Silver: Cleaned and validated datasets (configure transformations.yml)
+#    Gold: Business KPIs and metrics (configure transformations.yml)
+#
+# ============================================================================
+# GDPR COMPLIANCE NOTES
+# ============================================================================
+#
+# The SAP B1 connector automatically applies GDPR rules defined in comboi.gdpr:
+#
+# REMOVED (excluded columns):
+#   - Contact information: Phone, Email, Fax, Mobile
+#   - Addresses: Address, ZipCode, City, Country, etc.
+#   - Tax IDs: LicTradNum, VatIdUnCmp
+#
+# PSEUDONYMIZED (SHA-256 hash):
+#   - OCRD.CardName → CardName_Hash
+#   - OPRJ.PrjName → PrjName_Hash
+#   - OSLP.SlpName → SlpName_Hash
+#
+# RETAINED AS-IS:
+#   - All transaction amounts, dates, codes
+#   - All reference IDs (CardCode, PrjCode, etc.)
+#   - All financial data
+#
+# To disable GDPR processing (for testing/debugging):
+#   connection:
+#     apply_gdpr: false
+#
+# ============================================================================
+# KPI MAPPING REFERENCE
+# ============================================================================
+#
+# Revenue KPIs:
+#   - Total Revenue: OINV.DocTotal
+#   - Revenue by Service: INV1.LineTotal + OITM
+#   - Revenue by Customer: OINV.DocTotal + OCRD
+#   - Revenue by Project: INV1.LineTotal + OPRJ
+#
+# Profitability KPIs:
+#   - Gross Margin: (OINV - OPCH) / OINV
+#   - Project Profitability: (INV1 - PCH1) by OPRJ
+#
+# Cash Flow KPIs:
+#   - DSO: (OINV - ORCT) / Revenue × Days
+#   - Cash Collected: ORCT.DocTotal
+#
+# Operational KPIs:
+#   - Active Projects: COUNT(OPRJ WHERE Active='Y')
+#   - Customer Concentration: TOP 10 by OINV.DocTotal
+#
+# ============================================================================

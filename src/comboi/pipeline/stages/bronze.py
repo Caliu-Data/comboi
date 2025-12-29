@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from comboi.checkpoint import CheckpointStore
-from comboi.connectors import AzureSQLConnector, PostgresConnector
+from comboi.connectors import AzureSQLConnector, PostgresConnector, SAPB1Connector
 from comboi.io.adls import ADLSClient
 from comboi.logging import get_logger
 
@@ -51,6 +51,12 @@ class BronzeStage:
             return PostgresConnector(
                 conn_str=src["connection"]["conn_str"],
                 checkpoint_store=self.checkpoint_store,
+            )
+        if src["type"] == "sap_b1":
+            return SAPB1Connector(
+                source_storage_path=src["connection"]["source_storage_path"],
+                checkpoint_store=self.checkpoint_store,
+                apply_gdpr=src["connection"].get("apply_gdpr", True),
             )
         raise ValueError(f"Unsupported source type {src['type']}")
 
