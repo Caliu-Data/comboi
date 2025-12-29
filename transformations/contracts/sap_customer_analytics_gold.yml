@@ -1,0 +1,161 @@
+version: "1.0.0"
+dataset: "sap_customer_analytics_gold"
+stage: "gold"
+owner: "sap-analytics-team"
+description: "360-degree customer analytics with GDPR compliance, including lifetime value, credit utilization, and engagement metrics"
+
+schema:
+  columns:
+    - name: customer_code
+      type: VARCHAR
+      nullable: false
+      description: "Business partner code (unique identifier)"
+      constraints:
+        - unique: true
+        - not_null: true
+    - name: customer_name_hash
+      type: VARCHAR
+      nullable: false
+      description: "Pseudonymized customer name (GDPR-compliant SHA-256 hash)"
+      constraints:
+        - not_null: true
+        - pattern: "^[a-f0-9]{64}$"
+    - name: customer_type
+      type: VARCHAR
+      nullable: false
+      description: "Customer type: C=Customer, S=Supplier, L=Lead"
+      constraints:
+        - allowed_values: ["C", "S", "L"]
+    - name: lifetime_revenue
+      type: DECIMAL
+      nullable: false
+      description: "Total revenue from customer (all-time)"
+      constraints:
+        - min_value: 0
+    - name: current_balance
+      type: DECIMAL
+      nullable: false
+      description: "Current account balance"
+    - name: credit_limit
+      type: DECIMAL
+      nullable: false
+      description: "Credit line/limit"
+      constraints:
+        - min_value: 0
+    - name: credit_utilization_pct
+      type: DECIMAL
+      nullable: true
+      description: "Credit utilization percentage (balance / credit_limit * 100)"
+      constraints:
+        - min_value: 0
+        - max_value: 200
+    - name: days_since_last_invoice
+      type: INTEGER
+      nullable: true
+      description: "Days since most recent invoice (engagement metric)"
+      constraints:
+        - min_value: 0
+    - name: is_frozen
+      type: BOOLEAN
+      nullable: false
+      description: "Account frozen status (risk indicator)"
+    - name: primary_sales_employee
+      type: INTEGER
+      nullable: true
+      description: "Primary sales employee code (SlpCode)"
+
+quality_rules:
+  - name: "no_duplicate_customers"
+    type: "uniqueness"
+    column: "customer_code"
+    severity: "error"
+    description: "Ensure each customer appears only once"
+
+  - name: "no_null_customer_codes"
+    type: "not_null"
+    column: "customer_code"
+    severity: "error"
+    description: "Ensure customer_code is never null"
+
+  - name: "gdpr_customer_hash_valid"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE customer_name_hash IS NOT NULL AND LENGTH(customer_name_hash) != 64"
+    expected: 0
+    severity: "error"
+    description: "Validate customer name hashes are proper 64-character SHA-256"
+
+  - name: "no_negative_lifetime_revenue"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE lifetime_revenue < 0"
+    expected: 0
+    severity: "error"
+    description: "Ensure no negative lifetime revenue"
+
+  - name: "no_negative_credit_limit"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE credit_limit < 0"
+    expected: 0
+    severity: "error"
+    description: "Ensure no negative credit limits"
+
+  - name: "valid_credit_utilization"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE credit_utilization_pct IS NOT NULL AND (credit_utilization_pct < 0 OR credit_utilization_pct > 200)"
+    expected: 0
+    severity: "warning"
+    description: "Credit utilization should be between 0-200% (allow over-limit scenarios)"
+
+  - name: "valid_customer_types"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE customer_type NOT IN ('C', 'S', 'L')"
+    expected: 0
+    severity: "error"
+    description: "Ensure customer_type is one of: C, S, L"
+
+  - name: "minimum_customers"
+    type: "volume"
+    min_rows: 1
+    severity: "warning"
+    description: "Expect at least one customer in analytics"
+
+sla:
+  freshness:
+    max_age_hours: 24
+    schedule: "daily"
+    description: "Customer analytics should be refreshed daily"
+  completeness:
+    min_row_count: 1
+    description: "Expect customer records for active business"
+
+evolution:
+  backward_compatible: true
+  breaking_changes_allowed: false
+  deprecation_notice_days: 30
+  schema_registry:
+    enabled: true
+    registry_path: "transformations/contracts/.registry"
+  migration_strategy: "strict"
+  changelog:
+    - version: "1.0.0"
+      date: "2024-12-29"
+      changes:
+        - "Initial Gold layer customer analytics schema"
+        - "360-degree customer view with financial and engagement metrics"
+        - "GDPR-compliant pseudonymized customer attribution"
+
+privacy:
+  classification: "GDPR-Compliant"
+  gdpr_applicable: true
+  data_controller: "Your Organization"
+  lawful_basis: "Legitimate Interest (Article 6(1)(f)) - Customer relationship management and analytics"
+  special_categories: false
+  pseudonymization_applied: true
+  pseudonymized_fields:
+    - field: "customer_name_hash"
+      method: "SHA-256"
+      description: "Customer identification via pseudonymized hash from Silver OCRD"
+  retention_period: "7 years from last transaction or account closure"
+  data_subject_rights:
+    - "Right of access (Article 15)"
+    - "Right to rectification (Article 16)"
+    - "Right to erasure (Article 17)"

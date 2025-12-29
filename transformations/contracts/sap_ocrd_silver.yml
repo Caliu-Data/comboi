@@ -1,0 +1,209 @@
+version: "1.0.0"
+dataset: "sap_ocrd_silver"
+stage: "silver"
+owner: "sap-data-team"
+description: "GDPR-compliant SAP Business Partners master data with pseudonymized identities and validated quality checks"
+
+schema:
+  columns:
+    - name: CardCode
+      type: VARCHAR
+      nullable: false
+      description: "Business partner code (unique identifier)"
+      constraints:
+        - unique: true
+        - not_null: true
+    - name: CardName_Hash
+      type: VARCHAR
+      nullable: false
+      description: "SHA-256 hash of business partner name (GDPR: pseudonymized)"
+      constraints:
+        - not_null: true
+        - pattern: "^[a-f0-9]{64}$"
+    - name: CardType
+      type: VARCHAR
+      nullable: false
+      description: "Partner type: C=Customer, S=Supplier, L=Lead"
+      constraints:
+        - allowed_values: ["C", "S", "L"]
+    - name: GroupCode
+      type: INTEGER
+      nullable: true
+      description: "Business partner group classification"
+    - name: Territory
+      type: INTEGER
+      nullable: true
+      description: "Sales territory code"
+    - name: SlpCode
+      type: INTEGER
+      nullable: true
+      description: "Sales employee code"
+    - name: Currency
+      type: VARCHAR
+      nullable: true
+      description: "Partner default currency code"
+    - name: CreateDate
+      type: DATE
+      nullable: true
+      description: "Record creation date"
+    - name: UpdateDate
+      type: DATE
+      nullable: true
+      description: "Record last update date"
+    - name: Balance
+      type: DECIMAL
+      nullable: true
+      description: "Current account balance"
+    - name: CreditLine
+      type: DECIMAL
+      nullable: true
+      description: "Credit limit for partner"
+    - name: frozenFor
+      type: VARCHAR
+      nullable: true
+      description: "Account frozen status (Y/N)"
+      constraints:
+        - allowed_values: ["Y", "N", ""]
+    - name: FrozenFrom
+      type: DATE
+      nullable: true
+      description: "Account freeze start date"
+    - name: FrozenTo
+      type: DATE
+      nullable: true
+      description: "Account freeze end date"
+    - name: DebPayAcct
+      type: VARCHAR
+      nullable: true
+      description: "Debit/Payable account code"
+    - name: Discount
+      type: DECIMAL
+      nullable: true
+      description: "Default discount percentage"
+    - name: ValidFrom
+      type: DATE
+      nullable: true
+      description: "Partner validity start date"
+    - name: ValidTo
+      type: DATE
+      nullable: true
+      description: "Partner validity end date"
+
+quality_rules:
+  - name: "gdpr_no_pii_columns"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM (DESCRIBE {dataset}) WHERE column_name IN ('Phone1', 'Phone2', 'Cellular', 'Fax', 'E_Mail', 'Email', 'Address', 'Address2', 'ZipCode', 'City', 'County', 'Country', 'State1', 'State2', 'Building', 'MailAddrss', 'MailZipCod', 'MailCity', 'MailCounty', 'MailCountr', 'MailState', 'MailBuildi', 'LicTradNum', 'VatIdUnCmp')"
+    expected: 0
+    severity: "error"
+    description: "Verify that PII columns have been excluded per GDPR requirements"
+
+  - name: "gdpr_valid_cardname_hash"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE CardName_Hash IS NOT NULL AND LENGTH(CardName_Hash) != 64"
+    expected: 0
+    severity: "error"
+    description: "Validate that all CardName hashes are proper 64-character SHA-256 hashes"
+
+  - name: "gdpr_cardname_hash_not_null"
+    type: "not_null"
+    column: "CardName_Hash"
+    severity: "error"
+    description: "Ensure CardName_Hash is never null (required for GDPR compliance)"
+
+  - name: "no_duplicate_partners"
+    type: "uniqueness"
+    column: "CardCode"
+    severity: "error"
+    description: "Ensure each business partner has a unique CardCode"
+
+  - name: "no_null_card_codes"
+    type: "not_null"
+    column: "CardCode"
+    severity: "error"
+    description: "Ensure CardCode is never null"
+
+  - name: "update_after_create"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE UpdateDate IS NOT NULL AND CreateDate IS NOT NULL AND UpdateDate < CreateDate"
+    expected: 0
+    severity: "error"
+    description: "Validate that UpdateDate is not before CreateDate"
+
+  - name: "valid_card_types"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE CardType NOT IN ('C', 'S', 'L')"
+    expected: 0
+    severity: "error"
+    description: "Ensure CardType is one of: C (Customer), S (Supplier), L (Lead)"
+
+  - name: "valid_frozen_status"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE frozenFor IS NOT NULL AND frozenFor NOT IN ('Y', 'N', '')"
+    expected: 0
+    severity: "warning"
+    description: "Check that frozen status is Y, N, or empty"
+
+  - name: "minimum_partners"
+    type: "volume"
+    min_rows: 1
+    severity: "error"
+    description: "Ensure at least one business partner exists in the dataset"
+
+sla:
+  freshness:
+    max_age_hours: 24
+    schedule: "daily"
+    description: "Business partner data should be refreshed daily from SAP B1"
+  completeness:
+    min_row_count: 1
+    expected_growth_rate: 0.02
+    description: "Expect approximately 2% monthly growth in business partner count"
+  data_retention:
+    max_age_days: 2555
+    deletion_policy: "Retain for 7 years from last transaction or account closure per GDPR Article 17"
+
+evolution:
+  backward_compatible: true
+  breaking_changes_allowed: false
+  deprecation_notice_days: 30
+  schema_registry:
+    enabled: true
+    registry_path: "transformations/contracts/.registry"
+  migration_strategy: "strict"
+  changelog:
+    - version: "1.0.0"
+      date: "2024-12-29"
+      changes:
+        - "Initial schema with GDPR compliance for SAP Business One Business Partners"
+        - "Pseudonymized CardName field using SHA-256 hashing"
+        - "Excluded 25+ PII fields (phone, email, address, tax IDs)"
+        - "Added quality rules for GDPR validation"
+
+privacy:
+  classification: "GDPR-Compliant"
+  gdpr_applicable: true
+  data_controller: "Your Organization"
+  lawful_basis: "Legitimate Interest (Article 6(1)(f)) - Business operations and customer relationship management"
+  special_categories: false
+  pseudonymization_applied: true
+  pseudonymized_fields:
+    - field: "CardName"
+      method: "SHA-256"
+      output_field: "CardName_Hash"
+      description: "Business partner name pseudonymized during Bronze layer extraction"
+  excluded_pii_fields:
+    - "Phone1, Phone2, Cellular, Fax: Contact phone numbers"
+    - "E_Mail: Email address"
+    - "Address, Address2, ZipCode, City, County, Country, State1, State2, Building: Physical address"
+    - "MailAddrss, MailZipCod, MailCity, MailCounty, MailCountr, MailState, MailBuildi: Mailing address"
+    - "LicTradNum: Business license/trading number"
+    - "VatIdUnCmp: VAT identification number"
+  retention_period: "7 years from last transaction or account closure"
+  cross_border_transfers: "Adequate safeguards required per GDPR Article 46"
+  data_subject_rights:
+    - "Right of access (Article 15)"
+    - "Right to rectification (Article 16)"
+    - "Right to erasure (Article 17)"
+    - "Right to restriction of processing (Article 18)"
+    - "Right to data portability (Article 20)"
+    - "Right to object (Article 21)"

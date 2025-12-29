@@ -1,0 +1,175 @@
+version: "1.0.0"
+dataset: "sap_project_profitability_gold"
+stage: "gold"
+owner: "sap-analytics-team"
+description: "Project P&L analysis with revenue and cost tracking for services company profitability management"
+
+schema:
+  columns:
+    - name: project_code
+      type: VARCHAR
+      nullable: false
+      description: "Project code (unique identifier)"
+      constraints:
+        - unique: true
+        - not_null: true
+    - name: project_name_hash
+      type: VARCHAR
+      nullable: false
+      description: "Pseudonymized project name (GDPR-compliant SHA-256 hash)"
+      constraints:
+        - not_null: true
+        - pattern: "^[a-f0-9]{64}$"
+    - name: customer_code
+      type: VARCHAR
+      nullable: true
+      description: "Associated customer code (CardCode)"
+    - name: project_status
+      type: VARCHAR
+      nullable: false
+      description: "Project status: Active or Closed"
+      constraints:
+        - allowed_values: ["Active", "Closed"]
+    - name: total_revenue
+      type: DECIMAL
+      nullable: false
+      description: "Total project revenue (sum of INV1.LineTotal)"
+      constraints:
+        - min_value: 0
+    - name: total_cost
+      type: DECIMAL
+      nullable: false
+      description: "Total project cost (sum of PCH1.LineTotal)"
+      constraints:
+        - min_value: 0
+    - name: gross_profit
+      type: DECIMAL
+      nullable: false
+      description: "Gross profit (revenue - cost)"
+    - name: gross_margin_pct
+      type: DECIMAL
+      nullable: true
+      description: "Gross margin percentage ((revenue - cost) / revenue * 100)"
+      constraints:
+        - min_value: -100
+        - max_value: 100
+    - name: project_start_date
+      type: DATE
+      nullable: true
+      description: "Project start date (ValidFrom)"
+    - name: project_end_date
+      type: DATE
+      nullable: true
+      description: "Project end date (ValidTo)"
+    - name: duration_days
+      type: INTEGER
+      nullable: true
+      description: "Project duration in days"
+      constraints:
+        - min_value: 0
+
+quality_rules:
+  - name: "no_duplicate_projects"
+    type: "uniqueness"
+    column: "project_code"
+    severity: "error"
+    description: "Ensure each project appears only once"
+
+  - name: "no_null_project_codes"
+    type: "not_null"
+    column: "project_code"
+    severity: "error"
+    description: "Ensure project_code is never null"
+
+  - name: "gdpr_project_hash_valid"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE project_name_hash IS NOT NULL AND LENGTH(project_name_hash) != 64"
+    expected: 0
+    severity: "error"
+    description: "Validate project name hashes are proper 64-character SHA-256"
+
+  - name: "no_negative_revenue"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE total_revenue < 0"
+    expected: 0
+    severity: "error"
+    description: "Ensure no negative revenue"
+
+  - name: "no_negative_cost"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE total_cost < 0"
+    expected: 0
+    severity: "error"
+    description: "Ensure no negative costs"
+
+  - name: "valid_gross_profit_calculation"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE ABS(gross_profit - (total_revenue - total_cost)) > 0.01"
+    expected: 0
+    severity: "error"
+    description: "Validate gross_profit = revenue - cost"
+
+  - name: "valid_margin_calculation"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE total_revenue > 0 AND gross_margin_pct IS NOT NULL AND ABS(gross_margin_pct - ((total_revenue - total_cost) / total_revenue * 100)) > 0.1"
+    expected: 0
+    severity: "warning"
+    description: "Validate gross_margin_pct is correctly calculated"
+
+  - name: "valid_project_dates"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE project_end_date IS NOT NULL AND project_start_date IS NOT NULL AND project_end_date < project_start_date"
+    expected: 0
+    severity: "error"
+    description: "Ensure end date is not before start date"
+
+  - name: "valid_duration"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE duration_days IS NOT NULL AND duration_days < 0"
+    expected: 0
+    severity: "error"
+    description: "Ensure duration is not negative"
+
+  - name: "minimum_projects"
+    type: "volume"
+    min_rows: 1
+    severity: "warning"
+    description: "Expect at least one project"
+
+sla:
+  freshness:
+    max_age_hours: 24
+    schedule: "daily"
+    description: "Project profitability should be refreshed daily"
+  completeness:
+    min_row_count: 1
+    description: "Expect project data for services company operations"
+
+evolution:
+  backward_compatible: true
+  breaking_changes_allowed: false
+  deprecation_notice_days: 30
+  schema_registry:
+    enabled: true
+    registry_path: "transformations/contracts/.registry"
+  migration_strategy: "strict"
+  changelog:
+    - version: "1.0.0"
+      date: "2024-12-29"
+      changes:
+        - "Initial Gold layer project profitability schema"
+        - "P&L analysis with revenue, cost, and margin calculations"
+        - "GDPR-compliant pseudonymized project attribution"
+
+privacy:
+  classification: "GDPR-Compliant"
+  gdpr_applicable: true
+  data_controller: "Your Organization"
+  lawful_basis: "Legitimate Interest (Article 6(1)(f)) - Project management and profitability analysis"
+  special_categories: false
+  pseudonymization_applied: true
+  pseudonymized_fields:
+    - field: "project_name_hash"
+      method: "SHA-256"
+      description: "Project identification via pseudonymized hash from Silver OPRJ"
+  retention_period: "7 years from project closure for financial reporting"

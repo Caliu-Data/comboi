@@ -1,0 +1,170 @@
+version: "1.0.0"
+dataset: "sap_oprj_silver"
+stage: "silver"
+owner: "sap-data-team"
+description: "GDPR-compliant SAP Projects master data with pseudonymized project names and quality validation"
+
+schema:
+  columns:
+    - name: PrjCode
+      type: VARCHAR
+      nullable: false
+      description: "Project code (unique identifier)"
+      constraints:
+        - unique: true
+        - not_null: true
+    - name: PrjName_Hash
+      type: VARCHAR
+      nullable: false
+      description: "SHA-256 hash of project name (GDPR: pseudonymized, may contain client names)"
+      constraints:
+        - not_null: true
+        - pattern: "^[a-f0-9]{64}$"
+    - name: CardCode
+      type: VARCHAR
+      nullable: true
+      description: "Associated business partner code"
+    - name: Active
+      type: VARCHAR
+      nullable: true
+      description: "Project active status (Y=Active, N=Inactive)"
+      constraints:
+        - allowed_values: ["Y", "N", ""]
+    - name: ValidFrom
+      type: DATE
+      nullable: true
+      description: "Project start date"
+    - name: ValidTo
+      type: DATE
+      nullable: true
+      description: "Project end date"
+    - name: CreateDate
+      type: DATE
+      nullable: true
+      description: "Record creation date"
+    - name: UpdateDate
+      type: DATE
+      nullable: true
+      description: "Record last update date"
+    - name: DueDate
+      type: DATE
+      nullable: true
+      description: "Project due date"
+    - name: ClosingDate
+      type: DATE
+      nullable: true
+      description: "Project closure date"
+    - name: FinncPriod
+      type: INTEGER
+      nullable: true
+      description: "Financial period"
+
+quality_rules:
+  - name: "gdpr_no_project_pii"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM (DESCRIBE {dataset}) WHERE column_name = 'PrjName'"
+    expected: 0
+    severity: "error"
+    description: "Verify that original PrjName has been excluded (may contain client names)"
+
+  - name: "gdpr_valid_prjname_hash"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE PrjName_Hash IS NOT NULL AND LENGTH(PrjName_Hash) != 64"
+    expected: 0
+    severity: "error"
+    description: "Validate that all PrjName hashes are proper 64-character SHA-256 hashes"
+
+  - name: "gdpr_prjname_hash_not_null"
+    type: "not_null"
+    column: "PrjName_Hash"
+    severity: "error"
+    description: "Ensure PrjName_Hash is never null (required for GDPR compliance)"
+
+  - name: "no_duplicate_projects"
+    type: "uniqueness"
+    column: "PrjCode"
+    severity: "error"
+    description: "Ensure each project has a unique PrjCode"
+
+  - name: "no_null_project_codes"
+    type: "not_null"
+    column: "PrjCode"
+    severity: "error"
+    description: "Ensure PrjCode is never null"
+
+  - name: "valid_date_ranges"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE ValidTo IS NOT NULL AND ValidFrom IS NOT NULL AND ValidTo < ValidFrom"
+    expected: 0
+    severity: "error"
+    description: "Validate that ValidTo is not before ValidFrom"
+
+  - name: "update_after_create"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE UpdateDate IS NOT NULL AND CreateDate IS NOT NULL AND UpdateDate < CreateDate"
+    expected: 0
+    severity: "error"
+    description: "Validate that UpdateDate is not before CreateDate"
+
+  - name: "valid_active_status"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE Active IS NOT NULL AND Active NOT IN ('Y', 'N', '')"
+    expected: 0
+    severity: "warning"
+    description: "Check that Active status is Y, N, or empty"
+
+  - name: "minimum_projects"
+    type: "volume"
+    min_rows: 1
+    severity: "warning"
+    description: "Expect at least one project in the dataset"
+
+sla:
+  freshness:
+    max_age_hours: 24
+    schedule: "daily"
+    description: "Project data should be refreshed daily from SAP B1"
+  completeness:
+    min_row_count: 1
+    expected_growth_rate: 0.05
+    description: "Expect approximately 5% monthly growth in project count for services company"
+  data_retention:
+    max_age_days: 2555
+    deletion_policy: "Retain for 7 years from project closure per GDPR Article 17"
+
+evolution:
+  backward_compatible: true
+  breaking_changes_allowed: false
+  deprecation_notice_days: 30
+  schema_registry:
+    enabled: true
+    registry_path: "transformations/contracts/.registry"
+  migration_strategy: "strict"
+  changelog:
+    - version: "1.0.0"
+      date: "2024-12-29"
+      changes:
+        - "Initial schema with GDPR compliance for SAP Business One Projects"
+        - "Pseudonymized PrjName field using SHA-256 hashing"
+        - "Added quality rules for data validation and GDPR compliance"
+
+privacy:
+  classification: "GDPR-Compliant"
+  gdpr_applicable: true
+  data_controller: "Your Organization"
+  lawful_basis: "Legitimate Interest (Article 6(1)(f)) - Project management and business operations"
+  special_categories: false
+  pseudonymization_applied: true
+  pseudonymized_fields:
+    - field: "PrjName"
+      method: "SHA-256"
+      output_field: "PrjName_Hash"
+      description: "Project name pseudonymized during Bronze layer extraction (may contain client company names)"
+  excluded_pii_fields: []
+  retention_period: "7 years from project closure date"
+  cross_border_transfers: "Adequate safeguards required per GDPR Article 46"
+  data_subject_rights:
+    - "Right of access (Article 15)"
+    - "Right to rectification (Article 16)"
+    - "Right to erasure (Article 17)"
+    - "Right to restriction of processing (Article 18)"

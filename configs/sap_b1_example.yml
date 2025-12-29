@@ -168,25 +168,128 @@ stages:
   # --------------------------------------------------------------------------
   silver:
     local_path: "data/silver"
+    bronze_base_path: "data/bronze"  # For local development
+    transformations_path: "transformations/sql"
+    contracts_path: "transformations/contracts"
     data_lake:
       account_name: "{{env:DATA_LAKE_ACCOUNT_NAME}}"
       file_system: "silver"
       credential: "{{keyvault:adls-storage-key}}"
     remote_path_template: "{stage}/{source}/{table}.parquet"
-    transformations_path: "transformations/sql"
-    contracts_path: "transformations/contracts"
+    transformations:
+      silver:
+        # SAP B1 Master Data (GDPR-sensitive with pseudonymization)
+        - name: sap_ocrd_silver
+          type: sql
+          inputs:
+            - alias: bronze_ocrd
+              stage: bronze
+              source_path: "sap_b1_services/OCRD.parquet"
+          quality_checks:
+            - contract:sap_ocrd_silver
+
+        - name: sap_oprj_silver
+          type: sql
+          inputs:
+            - alias: bronze_oprj
+              stage: bronze
+              source_path: "sap_b1_services/OPRJ.parquet"
+          quality_checks:
+            - contract:sap_oprj_silver
+
+        - name: sap_oslp_silver
+          type: sql
+          inputs:
+            - alias: bronze_oslp
+              stage: bronze
+              source_path: "sap_b1_services/OSLP.parquet"
+          quality_checks:
+            - contract:sap_oslp_silver
+
+        # SAP B1 Transaction Tables (pass-through)
+        - name: silver_oinv
+          type: sql
+          inputs:
+            - alias: bronze_oinv
+              stage: bronze
+              source_path: "sap_b1_services/OINV.parquet"
+
+        - name: silver_inv1
+          type: sql
+          inputs:
+            - alias: bronze_inv1
+              stage: bronze
+              source_path: "sap_b1_services/INV1.parquet"
+
+        - name: silver_pch1
+          type: sql
+          inputs:
+            - alias: bronze_pch1
+              stage: bronze
+              source_path: "sap_b1_services/PCH1.parquet"
 
   # --------------------------------------------------------------------------
   # GOLD LAYER: Business Metrics
   # --------------------------------------------------------------------------
   gold:
     local_path: "data/gold"
+    silver_base_path: "data/silver"  # For local development
+    transformations_path: "transformations/sql"
+    contracts_path: "transformations/contracts"
     data_lake:
       account_name: "{{env:DATA_LAKE_ACCOUNT_NAME}}"
       file_system: "gold"
       credential: "{{keyvault:adls-storage-key}}"
     remote_path_template: "{stage}/{source}/{table}.parquet"
-    transformations_path: "transformations/sql"
+    transformations:
+      gold:
+        # Revenue metrics with GDPR-compliant customer/project attribution
+        - name: sap_revenue_metrics_gold
+          type: sql
+          inputs:
+            - alias: silver_oinv
+              stage: silver
+              source_path: "refined/silver_oinv.parquet"
+            - alias: silver_inv1
+              stage: silver
+              source_path: "refined/silver_inv1.parquet"
+            - alias: silver_ocrd
+              stage: silver
+              source_path: "refined/sap_ocrd_silver.parquet"
+            - alias: silver_oprj
+              stage: silver
+              source_path: "refined/sap_oprj_silver.parquet"
+          quality_checks:
+            - contract:sap_revenue_metrics_gold
+
+        # 360-degree customer analytics
+        - name: sap_customer_analytics_gold
+          type: sql
+          inputs:
+            - alias: silver_ocrd
+              stage: silver
+              source_path: "refined/sap_ocrd_silver.parquet"
+            - alias: silver_oinv
+              stage: silver
+              source_path: "refined/silver_oinv.parquet"
+          quality_checks:
+            - contract:sap_customer_analytics_gold
+
+        # Project profitability analysis
+        - name: sap_project_profitability_gold
+          type: sql
+          inputs:
+            - alias: silver_oprj
+              stage: silver
+              source_path: "refined/sap_oprj_silver.parquet"
+            - alias: silver_inv1
+              stage: silver
+              source_path: "refined/silver_inv1.parquet"
+            - alias: silver_pch1
+              stage: silver
+              source_path: "refined/silver_pch1.parquet"
+          quality_checks:
+            - contract:sap_project_profitability_gold
 
 # ============================================================================
 # MONITORING & LOGGING

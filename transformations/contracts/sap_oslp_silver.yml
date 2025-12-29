@@ -1,0 +1,145 @@
+version: "1.0.0"
+dataset: "sap_oslp_silver"
+stage: "silver"
+owner: "sap-data-team"
+description: "GDPR-compliant SAP Sales Employees master data with pseudonymized employee names and excluded contact information"
+
+schema:
+  columns:
+    - name: SlpCode
+      type: INTEGER
+      nullable: false
+      description: "Sales employee code (unique identifier)"
+      constraints:
+        - unique: true
+        - not_null: true
+    - name: SlpName_Hash
+      type: VARCHAR
+      nullable: false
+      description: "SHA-256 hash of sales employee name (GDPR: pseudonymized)"
+      constraints:
+        - not_null: true
+        - pattern: "^[a-f0-9]{64}$"
+    - name: Active
+      type: VARCHAR
+      nullable: true
+      description: "Employee active status (Y=Active, N=Inactive)"
+      constraints:
+        - allowed_values: ["Y", "N", ""]
+    - name: Commission
+      type: DECIMAL
+      nullable: true
+      description: "Commission percentage"
+    - name: EmployeeID
+      type: INTEGER
+      nullable: true
+      description: "Employee ID reference to HR system"
+
+quality_rules:
+  - name: "gdpr_no_employee_contact_info"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM (DESCRIBE {dataset}) WHERE column_name IN ('Email', 'E_Mail', 'Mobile', 'Telephone', 'Phone', 'Fax')"
+    expected: 0
+    severity: "error"
+    description: "Verify that employee contact information (email, phone) has been excluded per GDPR"
+
+  - name: "gdpr_valid_slpname_hash"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE SlpName_Hash IS NOT NULL AND LENGTH(SlpName_Hash) != 64"
+    expected: 0
+    severity: "error"
+    description: "Validate that all SlpName hashes are proper 64-character SHA-256 hashes"
+
+  - name: "gdpr_slpname_hash_not_null"
+    type: "not_null"
+    column: "SlpName_Hash"
+    severity: "error"
+    description: "Ensure SlpName_Hash is never null (required for GDPR compliance)"
+
+  - name: "no_duplicate_employees"
+    type: "uniqueness"
+    column: "SlpCode"
+    severity: "error"
+    description: "Ensure each sales employee has a unique SlpCode"
+
+  - name: "no_null_employee_codes"
+    type: "not_null"
+    column: "SlpCode"
+    severity: "error"
+    description: "Ensure SlpCode is never null"
+
+  - name: "valid_active_status"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE Active IS NOT NULL AND Active NOT IN ('Y', 'N', '')"
+    expected: 0
+    severity: "warning"
+    description: "Check that Active status is Y, N, or empty"
+
+  - name: "valid_commission_percentage"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE Commission IS NOT NULL AND (Commission < 0 OR Commission > 100)"
+    expected: 0
+    severity: "warning"
+    description: "Check that commission percentage is between 0 and 100"
+
+  - name: "minimum_employees"
+    type: "volume"
+    min_rows: 1
+    severity: "warning"
+    description: "Expect at least one sales employee in the dataset"
+
+sla:
+  freshness:
+    max_age_hours: 24
+    schedule: "daily"
+    description: "Sales employee data should be refreshed daily from SAP B1"
+  completeness:
+    min_row_count: 1
+    expected_growth_rate: 0.01
+    description: "Expect approximately 1% monthly growth in sales team size"
+  data_retention:
+    max_age_days: 2555
+    deletion_policy: "Retain for 7 years from employment termination per GDPR Article 17"
+
+evolution:
+  backward_compatible: true
+  breaking_changes_allowed: false
+  deprecation_notice_days: 30
+  schema_registry:
+    enabled: true
+    registry_path: "transformations/contracts/.registry"
+  migration_strategy: "strict"
+  changelog:
+    - version: "1.0.0"
+      date: "2024-12-29"
+      changes:
+        - "Initial schema with GDPR compliance for SAP Business One Sales Employees"
+        - "Pseudonymized SlpName field using SHA-256 hashing"
+        - "Excluded employee contact information (email, phone)"
+        - "Added quality rules for GDPR validation"
+
+privacy:
+  classification: "GDPR-Compliant"
+  gdpr_applicable: true
+  data_controller: "Your Organization"
+  lawful_basis: "Legitimate Interest (Article 6(1)(f)) - Employee management and sales operations"
+  special_categories: false
+  pseudonymization_applied: true
+  pseudonymized_fields:
+    - field: "SlpName"
+      method: "SHA-256"
+      output_field: "SlpName_Hash"
+      description: "Sales employee name pseudonymized during Bronze layer extraction"
+  excluded_pii_fields:
+    - "Email: Employee email address"
+    - "Mobile: Mobile phone number"
+    - "Telephone: Office phone number"
+    - "Fax: Fax number"
+  retention_period: "7 years from employment termination"
+  cross_border_transfers: "Adequate safeguards required per GDPR Article 46"
+  data_subject_rights:
+    - "Right of access (Article 15)"
+    - "Right to rectification (Article 16)"
+    - "Right to erasure (Article 17)"
+    - "Right to restriction of processing (Article 18)"
+    - "Right to data portability (Article 20)"

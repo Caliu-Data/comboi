@@ -1,0 +1,152 @@
+version: "1.0.0"
+dataset: "sap_revenue_metrics_gold"
+stage: "gold"
+owner: "sap-analytics-team"
+description: "Business KPIs for revenue analysis across customers, projects, and time periods with GDPR-compliant customer attribution"
+
+schema:
+  columns:
+    - name: metric_date
+      type: DATE
+      nullable: false
+      description: "Date of the revenue metric (daily grain)"
+      constraints:
+        - not_null: true
+    - name: customer_code
+      type: VARCHAR
+      nullable: true
+      description: "Business partner code (CardCode from OCRD)"
+    - name: customer_name_hash
+      type: VARCHAR
+      nullable: true
+      description: "Pseudonymized customer name (GDPR-compliant SHA-256 hash)"
+      constraints:
+        - pattern: "^[a-f0-9]{64}$"
+    - name: project_code
+      type: VARCHAR
+      nullable: true
+      description: "Project code (PrjCode from OPRJ)"
+    - name: project_name_hash
+      type: VARCHAR
+      nullable: true
+      description: "Pseudonymized project name (GDPR-compliant SHA-256 hash)"
+      constraints:
+        - pattern: "^[a-f0-9]{64}$"
+    - name: sales_employee_code
+      type: INTEGER
+      nullable: true
+      description: "Sales employee code (SlpCode)"
+    - name: total_revenue
+      type: DECIMAL
+      nullable: false
+      description: "Total revenue for the metric grain (sum of OINV.DocTotal)"
+      constraints:
+        - not_null: true
+        - min_value: 0
+    - name: invoice_count
+      type: INTEGER
+      nullable: false
+      description: "Number of invoices"
+      constraints:
+        - not_null: true
+        - min_value: 0
+    - name: avg_invoice_value
+      type: DECIMAL
+      nullable: true
+      description: "Average invoice amount (total_revenue / invoice_count)"
+      constraints:
+        - min_value: 0
+    - name: revenue_by_service
+      type: VARCHAR
+      nullable: true
+      description: "JSON breakdown of revenue by service/item code"
+
+quality_rules:
+  - name: "no_negative_revenue"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE total_revenue < 0"
+    expected: 0
+    severity: "error"
+    description: "Ensure no negative revenue values exist"
+
+  - name: "no_negative_invoice_count"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE invoice_count < 0"
+    expected: 0
+    severity: "error"
+    description: "Ensure no negative invoice counts"
+
+  - name: "gdpr_customer_hash_consistency"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE customer_name_hash IS NOT NULL AND LENGTH(customer_name_hash) != 64"
+    expected: 0
+    severity: "error"
+    description: "Validate that customer name hashes are proper 64-character SHA-256"
+
+  - name: "gdpr_project_hash_consistency"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE project_name_hash IS NOT NULL AND LENGTH(project_name_hash) != 64"
+    expected: 0
+    severity: "error"
+    description: "Validate that project name hashes are proper 64-character SHA-256"
+
+  - name: "valid_avg_invoice_calculation"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE invoice_count > 0 AND ABS(avg_invoice_value - (total_revenue / invoice_count)) > 0.01"
+    expected: 0
+    severity: "warning"
+    description: "Validate that avg_invoice_value is correctly calculated"
+
+  - name: "revenue_completeness"
+    type: "volume"
+    min_rows: 1
+    severity: "warning"
+    description: "Expect at least one revenue record"
+
+  - name: "no_future_dates"
+    type: "custom_sql"
+    query: "SELECT COUNT(*) FROM {dataset} WHERE metric_date > CURRENT_DATE"
+    expected: 0
+    severity: "error"
+    description: "Ensure no metrics dated in the future"
+
+sla:
+  freshness:
+    max_age_hours: 24
+    schedule: "daily"
+    description: "Revenue metrics should be refreshed daily"
+  completeness:
+    min_row_count: 1
+    description: "Expect revenue data for active business operations"
+
+evolution:
+  backward_compatible: true
+  breaking_changes_allowed: false
+  deprecation_notice_days: 30
+  schema_registry:
+    enabled: true
+    registry_path: "transformations/contracts/.registry"
+  migration_strategy: "strict"
+  changelog:
+    - version: "1.0.0"
+      date: "2024-12-29"
+      changes:
+        - "Initial Gold layer revenue metrics schema"
+        - "GDPR-compliant customer and project attribution via hashes"
+        - "Daily grain revenue analysis with invoice count and averages"
+
+privacy:
+  classification: "GDPR-Compliant"
+  gdpr_applicable: true
+  data_controller: "Your Organization"
+  lawful_basis: "Legitimate Interest (Article 6(1)(f)) - Business analytics and reporting"
+  special_categories: false
+  pseudonymization_applied: true
+  pseudonymized_fields:
+    - field: "customer_name_hash"
+      method: "SHA-256"
+      description: "Customer attribution via pseudonymized hash from Silver OCRD"
+    - field: "project_name_hash"
+      method: "SHA-256"
+      description: "Project attribution via pseudonymized hash from Silver OPRJ"
+  retention_period: "7 years for financial reporting compliance"
